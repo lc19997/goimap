@@ -2,15 +2,27 @@
 ## explicit
 github.com/emersion/go-imap
 github.com/emersion/go-imap/backend
+github.com/emersion/go-imap/backend/backendutil
 github.com/emersion/go-imap/commands
 github.com/emersion/go-imap/responses
 github.com/emersion/go-imap/server
 github.com/emersion/go-imap/utf7
+# github.com/emersion/go-message v0.15.0
+## explicit
+github.com/emersion/go-message
+github.com/emersion/go-message/mail
+github.com/emersion/go-message/textproto
 # github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 github.com/emersion/go-sasl
+# github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594
+github.com/emersion/go-textwrapper
 # github.com/zenhack/go.notmuch v0.0.0-20200930180226-732f6524c33d
 ## explicit
 github.com/zenhack/go.notmuch
+# golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+## explicit
+golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blowfish
 # golang.org/x/text v0.3.7
 golang.org/x/text/encoding
 golang.org/x/text/encoding/internal/identifier

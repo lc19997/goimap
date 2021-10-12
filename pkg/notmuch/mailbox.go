@@ -1,15 +1,24 @@
 package notmuch
 
 import (
+	"fmt"
+	"github.com/emersion/go-imap/backend/backendutil"
+	"github.com/stbenjam/go-imap-notmuch/pkg/maildir"
 	notmuch "github.com/zenhack/go.notmuch"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/emersion/go-imap"
 )
 
 type Mailbox struct {
-	name string
-	messages []notmuch.Message
+	name     string
+	query    string
+	db       *notmuch.DB
+	uidNext  uint32
+	Messages []*Message
+	maildir  string
 }
 
 func (mbox *Mailbox) Name() string {
@@ -24,6 +33,25 @@ func (mbox *Mailbox) Info() (*imap.MailboxInfo, error) {
 	return info, nil
 }
 
+func (mbox *Mailbox) unseenSeqNum() uint32 {
+	for i, msg := range mbox.Messages {
+		seqNum := uint32(i + 1)
+
+		seen := false
+		for _, flag := range msg.Flags {
+			if flag == imap.SeenFlag {
+				seen = true
+				break
+			}
+		}
+
+		if !seen {
+			return seqNum
+		}
+	}
+	return 0
+}
+
 func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error) {
 	status := imap.NewMailboxStatus(mbox.name, items)
 	status.PermanentFlags = []string{"\\*"}
@@ -34,7 +62,7 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 		case imap.StatusMessages:
 			status.Messages = uint32(len(mbox.Messages))
 		case imap.StatusUidNext:
-			status.UidNext = mbox.uidNext()
+			status.UidNext = mbox.uidNext
 		case imap.StatusUidValidity:
 			status.UidValidity = 1
 		case imap.StatusRecent:
@@ -48,20 +76,70 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 }
 
 func (mbox *Mailbox) SetSubscribed(subscribed bool) error {
-	return nil
+	return fmt.Errorf("unsupported operation")
 }
 
 func (mbox *Mailbox) Check() error {
-	return nil
+	return fmt.Errorf("unsupported operation")
 }
 
 func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
 	defer close(ch)
+
+	for i, msg := range mbox.Messages {
+		seqNum := uint32(i + 1)
+
+		var id uint32
+		if uid {
+			id = msg.Uid
+		} else {
+			id = seqNum
+		}
+		if !seqSet.Contains(id) {
+			continue
+		}
+
+		m, err := msg.Fetch(seqNum, items)
+		if err != nil {
+			continue
+		}
+
+		ch <- m
+	}
+
 	return nil
 }
 
 func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uint32, error) {
-	return nil, nil
+	notmuchQuery := mbox.query
+	notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, imapSearchToNotmuch(criteria))
+	fmt.Fprintf(os.Stderr, "query is: %s", notmuchQuery)
+
+	results, err := mbox.db.NewQuery(notmuchQuery).Messages()
+	if err != nil {
+		return nil, fmt.Errorf("could not search: %s", err.Error())
+	}
+
+	resultID := make([]string, 0)
+	var message *notmuch.Message
+	for results.Next(&message) {
+		resultID = append(resultID, message.ID())
+	}
+
+	ids := make([]uint32, 0)
+	for _, message := range mbox.Messages {
+		if criteria.Uid != nil && !criteria.Uid.Contains(message.Uid) {
+			continue
+		}
+
+		for _, result := range resultID {
+			if message.ID == result {
+				ids = append(ids, message.Uid)
+			}
+		}
+	}
+
+	return ids, nil
 }
 
 func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Literal) error {
@@ -81,6 +159,40 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 		}
 
 		msg.Flags = backendutil.UpdateFlags(msg.Flags, op, flags)
+		notMuchMessage, err := mbox.db.FindMessage(msg.ID)
+		if err != nil {
+			return err
+		}
+
+		err = notMuchMessage.Atomic(func(m *notmuch.Message) {
+			if err := m.RemoveAllTags(); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to remove tags from message %s: %s", m.ID(), err.Error())
+				return
+			}
+			for _, tag := range msg.Tags() {
+				if err := notMuchMessage.AddTag(tag); err != nil {
+					fmt.Fprintf(os.Stderr, "failed to add tag to message %s: %s\n", m.ID(), err.Error())
+					return
+				}
+			}
+		})
+		if err := notMuchMessage.TagsToMaildirFlags(); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to convert tag to mail dir flags: %s\n", err.Error())
+			continue
+		}
+
+		newFile := notMuchMessage.Filename()
+		if err := notMuchMessage.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to close notmuch message %s: %s\n", msg.ID, err.Error())
+		}
+
+		msg.Filename = newFile
+		mbox.db.Close()
+		db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
+		if err != nil {
+			return err
+		}
+		mbox.db = db
 	}
 
 	return nil
@@ -92,4 +204,76 @@ func (mbox *Mailbox) CopyMessages(uid bool, seqset *imap.SeqSet, destName string
 
 func (mbox *Mailbox) Expunge() error {
 	return nil
+}
+
+func (mbox *Mailbox) loadMessages() {
+	if len(mbox.Messages) == 0 {
+		messages := make([]*Message, 0)
+		query := mbox.db.NewQuery(mbox.query)
+		results, err := query.Messages()
+		if err != nil {
+			panic(err)
+		}
+		var message *notmuch.Message
+		for results.Next(&message) {
+			mbox.uidNext++
+
+			f := message.Filename()
+			s, err := os.Stat(f)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+
+			imapFlags := make([]string, 0)
+			maildirFlags := maildir.FlagFromFilename(f)
+			for _, flag := range maildirFlags {
+				if imapFlag := maildir.ImapFlagFromMaildir(flag); imapFlag != "" {
+					imapFlags = append(imapFlags, imapFlag)
+				}
+			}
+
+			messages = append(messages, &Message{
+				ID:       message.ID(),
+				Uid:      mbox.uidNext,
+				Date:     message.Date(),
+				Filename: f,
+				Flags:    imapFlags,
+				Size:     uint32(s.Size()),
+			})
+		}
+
+		mbox.Messages = messages
+	}
+}
+
+func removeMessage(results []*Message, index int) []*Message {
+		results[index] = results[len(results)-1]
+		return results[:len(results)-1]
+}
+
+func imapSearchToNotmuch(criteria *imap.SearchCriteria) string {
+	notmuchQuery := ""
+
+	if len(criteria.Text) > 0 {
+		notmuchQuery = strings.Join(criteria.Text, " ")
+	}
+
+	if values := criteria.Header.Values("From"); len(values) > 0 {
+		for _, value := range values {
+			notmuchQuery = fmt.Sprintf("%s from:%s", notmuchQuery, value)
+		}
+	}
+
+	if values := criteria.Header.Values("Subject"); len(values) > 0 {
+		for _, value := range values {
+			notmuchQuery = fmt.Sprintf("%s subject:%s", notmuchQuery, value)
+		}
+	}
+
+	for _, pair := range criteria.Or {
+		notmuchQuery = fmt.Sprintf("%s and (%s or %s)", notmuchQuery, imapSearchToNotmuch(pair[0]), imapSearchToNotmuch(pair[1]))
+	}
+
+	return notmuchQuery
 }

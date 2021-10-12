@@ -2,20 +2,37 @@ package notmuch
 
 import (
 	"bufio"
-	"bytes"
+	"fmt"
 	"github.com/emersion/go-imap"
-	notmuch "github.com/zenhack/go.notmuch"
+	"github.com/emersion/go-imap/backend/backendutil"
+	"github.com/emersion/go-message"
+	"github.com/emersion/go-message/textproto"
 	"io"
+	"os"
 	"time"
 )
 
 type Message struct {
-/*	Uid   uint32
-	Date  time.Time
-	Size  uint32
-	Flags []string
-	Body  []byte */
-	notmuch *notmuch.Message
+	ID       string
+	Uid      uint32
+	Date     time.Time
+	Size     uint32
+	Flags    []string
+	Filename string
+}
+
+func (m *Message) headerAndBody() (textproto.Header, io.Reader, error) {
+	f, err := os.Open(m.Filename)
+	if err != nil {
+		return textproto.Header{}, nil, err
+	}
+	body := bufio.NewReader(f)
+	hdr, err := textproto.ReadHeader(body)
+	if err != nil {
+		return textproto.Header{}, nil, err
+	}
+
+	return hdr, body, nil
 }
 
 func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, error) {
@@ -23,19 +40,15 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 	for _, item := range items {
 		switch item {
 		case imap.FetchEnvelope:
-			fetched.Envelope = &imap.Envelope{
-				Date: m.notmuch.Date(),
-				Subject: m.notmuch.Header("Subject"),
-				From: &imap.Address{
-				},
-
-
+			hdr, _, err := m.headerAndBody()
+			if err == nil {
+				fetched.Envelope, _ = backendutil.FetchEnvelope(hdr)
 			}
 		case imap.FetchBody, imap.FetchBodyStructure:
-			m.notmuch.
-
-			hdr, body, _ := m.headerAndBody()
-			fetched.BodyStructure, _ = backendutil.FetchBodyStructure(hdr, body, item == imap.FetchBodyStructure)
+			hdr, body, err := m.headerAndBody()
+			if err == nil {
+				fetched.BodyStructure, _ = backendutil.FetchBodyStructure(hdr, body, item == imap.FetchBodyStructure)
+			}
 		case imap.FetchFlags:
 			fetched.Flags = m.Flags
 		case imap.FetchInternalDate:
@@ -45,17 +58,14 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 		case imap.FetchUid:
 			fetched.Uid = m.Uid
 		default:
+			hdr, body, err := m.headerAndBody()
+			if err != nil {
+				break
+			}
 			section, err := imap.ParseBodySectionName(item)
 			if err != nil {
 				break
 			}
-
-			body := bufio.NewReader(bytes.NewReader(m.Body))
-			hdr, err := textproto.ReadHeader(body)
-			if err != nil {
-				return nil, err
-			}
-
 			l, _ := backendutil.FetchBodySection(hdr, body, section)
 			fetched.Body[section] = l
 		}
@@ -65,6 +75,29 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 }
 
 func (m *Message) Match(seqNum uint32, c *imap.SearchCriteria) (bool, error) {
-	e, _ := m.entity()
+	_, body, err := m.headerAndBody()
+	if err != nil {
+		return false, err
+	}
+	e, err := message.Read(body)
 	return backendutil.Match(e, seqNum, m.Uid, m.Date, m.Flags, c)
+}
+
+func (m *Message) Tags() []string {
+	tags := make([]string, 0)
+	for _, flag := range m.Flags {
+		switch flag {
+		case imap.SeenFlag:
+			tags = append(tags, "seen")
+		case imap.FlaggedFlag:
+			tags = append(tags, "flagged")
+		case imap.DraftFlag:
+			tags = append(tags, "draft")
+		case imap.AnsweredFlag:
+			tags = append(tags, "replied")
+		}
+	}
+
+	fmt.Println(tags)
+	return tags
 }

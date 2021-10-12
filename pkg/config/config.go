@@ -8,22 +8,31 @@ import (
 const (
 	defaultUsername = "notmuch"
 	defaultPassword = "notmuch"
-	inboxQuery = "folder:INBOX"
 )
 
 type Config struct {
-	Username   string `yaml:"username"`
-	Password   string `yaml:"password"`
-	Maildir    string `yaml:"maildir"`
-	InboxQuery string `yaml:"inboxQuery"`
+	Username  string    `yaml:"username"`
+	Password  string    `yaml:"password"`
+	Maildir   string    `yaml:"maildir"`
+	Mailboxes []Mailbox `yaml:"mailboxes"`
+}
+
+type Mailbox struct {
+	Name  string `yaml:"name"`
+	Query string `yaml:"query"`
 }
 
 func New(path string) (*Config, error) {
 	if path == "" {
 		return &Config{
-			Username: defaultUsername,
-			Password: defaultPassword,
-			InboxQuery: inboxQuery,
+			Username:   defaultUsername,
+			Password:   defaultPassword,
+			Mailboxes: []Mailbox{
+				{
+					Name: "INBOX",
+					Query: "folder:INBOX",
+				},
+			},
 		}, nil
 	}
 
