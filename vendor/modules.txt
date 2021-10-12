@@ -1,0 +1,20 @@
+# github.com/emersion/go-imap v1.2.0
+## explicit
+github.com/emersion/go-imap
+github.com/emersion/go-imap/backend
+github.com/emersion/go-imap/commands
+github.com/emersion/go-imap/responses
+github.com/emersion/go-imap/server
+github.com/emersion/go-imap/utf7
+# github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
+github.com/emersion/go-sasl
+# github.com/zenhack/go.notmuch v0.0.0-20200930180226-732f6524c33d
+## explicit
+github.com/zenhack/go.notmuch
+# golang.org/x/text v0.3.7
+golang.org/x/text/encoding
+golang.org/x/text/encoding/internal/identifier
+golang.org/x/text/transform
+# gopkg.in/yaml.v2 v2.4.0
+## explicit
+gopkg.in/yaml.v2
