@@ -2,6 +2,7 @@ package notmuch
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
@@ -11,7 +12,7 @@ import (
 )
 
 type Backend struct {
-	user User
+	user *User
 	db   *notmuch.DB
 }
 
@@ -21,7 +22,7 @@ func (b *Backend) Login(_ *imap.ConnInfo, username, password string) (backend.Us
 		fmt.Println(err)
 	}
 	if err == nil && username == b.user.username {
-		return &b.user, nil
+		return b.user, nil
 	}
 
 	return nil, fmt.Errorf("invalid username or password")
@@ -35,6 +36,11 @@ func New(cfg *config.Config) (*Backend, error) {
 	}
 	db.Close()
 
+	user := &User{
+		username: cfg.Username,
+		password: cfg.Password,
+	}
+
 	// Parse mailbox list from config file
 	mailboxes := make(map[string]*Mailbox)
 	for _, mailbox := range cfg.Mailboxes {
@@ -42,15 +48,15 @@ func New(cfg *config.Config) (*Backend, error) {
 			name:    mailbox.Name,
 			query:   mailbox.Query,
 			maildir: cfg.Maildir,
+			user:    user,
+			lock:    &sync.RWMutex{},
 		}
-		mailboxes[mailbox.Name].loadMessages()
 	}
+
+	user.mailboxes = mailboxes
+
 	return &Backend{
-		user: User{
-			username:  cfg.Username,
-			password:  cfg.Password,
-			mailboxes: mailboxes,
-		},
-		db: db,
+		user: user,
+		db:   db,
 	}, nil
 }

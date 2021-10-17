@@ -34,6 +34,21 @@ func ImapFlagFromMaildir(maildir Flag) string {
 	}
 }
 
+func NotmuchFlagFromImap(imapFlag string) string {
+	switch(imapFlag) {
+	case imap.AnsweredFlag:
+		return "tag:replied"
+	case imap.SeenFlag:
+		return "not tag:read"
+	case imap.DraftFlag:
+		return "tag:draft"
+	case imap.FlaggedFlag:
+		return "tag:flagged"
+	default:
+		return ""
+	}
+}
+
 func FlagFromFilename(filename string) []Flag {
 	flags := make([]Flag, 0)
 	parts := strings.Split(filename, ":2,")
