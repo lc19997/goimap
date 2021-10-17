@@ -137,7 +137,6 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
 	if err != nil {
 		return nil, fmt.Errorf("could not open mailbox: %s", err.Error())
 	}
-	defer db.Close()
 
 	results, err := db.NewQuery(notmuchQuery).Messages()
 	if err != nil {
@@ -332,7 +331,6 @@ func (mbox *Mailbox) loadMessages() {
 		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
 		return
 	}
-	defer db.Close()
 
 	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "position.glass"))
 	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
