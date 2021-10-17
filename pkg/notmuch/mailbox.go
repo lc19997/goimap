@@ -70,6 +70,11 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 	status.PermanentFlags = []string{"\\*"}
 	status.UnseenSeqNum = mbox.unseenSeqNum()
 
+	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, name := range items {
 		switch name {
 		case imap.StatusMessages:
@@ -79,9 +84,9 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 		case imap.StatusUidValidity:
 			status.UidValidity = 1
 		case imap.StatusRecent:
-			status.Recent = 0 // TODO
+			status.Recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:recent", mbox.query)).CountMessages())
 		case imap.StatusUnseen:
-			status.Unseen = 0 // TODO
+			status.Unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 		}
 	}
 
