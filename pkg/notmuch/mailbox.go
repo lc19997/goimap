@@ -23,6 +23,8 @@ type Mailbox struct {
 	query       string
 	uidNext     uint32
 	user        *User
+	recent      uint32
+	unseen      uint32
 	lastUpdated time.Time
 }
 
@@ -70,11 +72,6 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 	status.PermanentFlags = []string{"\\*"}
 	status.UnseenSeqNum = mbox.unseenSeqNum()
 
-	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
-	if err != nil {
-		return nil, err
-	}
-
 	for _, name := range items {
 		switch name {
 		case imap.StatusMessages:
@@ -84,9 +81,9 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 		case imap.StatusUidValidity:
 			status.UidValidity = 1
 		case imap.StatusRecent:
-			status.Recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:recent", mbox.query)).CountMessages())
+			status.Recent = mbox.recent
 		case imap.StatusUnseen:
-			status.Unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
+			status.Unseen = mbox.unseen
 		}
 	}
 
@@ -340,6 +337,9 @@ func (mbox *Mailbox) loadMessages() {
 	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "position.glass"))
 	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
 	mbox.lastUpdated = stat.ModTime()
+
+	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:recent", mbox.query)).CountMessages())
+	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 
 	if len(mbox.Messages) > 0 && !needsUpdate {
 		return
