@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/stbenjam/go-imap-notmuch/pkg/config"
-	"github.com/stbenjam/go-imap-notmuch/pkg/notmuch"
 	"log"
 	"os"
+
+	"github.com/stbenjam/go-imap-notmuch/pkg/config"
+	"github.com/stbenjam/go-imap-notmuch/pkg/notmuch"
 
 	"github.com/emersion/go-imap/server"
 )
@@ -24,7 +25,6 @@ func main() {
 		os.Exit(1)
 	}
 
-
 	be, err := notmuch.New(cfg)
 	if err != nil {
 		panic(err)
@@ -33,7 +33,7 @@ func main() {
 	s := server.New(be)
 	s.Debug = os.Stderr
 
-	s.Addr = ":9943"
+	s.Addr = ":9143"
 	s.AllowInsecureAuth = true
 	if err := s.ListenAndServe(); err != nil {
 		log.Fatal(err)

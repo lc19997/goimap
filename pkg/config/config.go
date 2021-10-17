@@ -1,8 +1,9 @@
 package config
 
 import (
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
+
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -25,11 +26,11 @@ type Mailbox struct {
 func New(path string) (*Config, error) {
 	if path == "" {
 		return &Config{
-			Username:   defaultUsername,
-			Password:   defaultPassword,
+			Username: defaultUsername,
+			Password: defaultPassword,
 			Mailboxes: []Mailbox{
 				{
-					Name: "INBOX",
+					Name:  "INBOX",
 					Query: "folder:INBOX",
 				},
 			},

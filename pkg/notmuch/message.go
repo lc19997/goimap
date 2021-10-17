@@ -3,13 +3,14 @@ package notmuch
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"os"
+	"time"
+
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend/backendutil"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/textproto"
-	"io"
-	"os"
-	"time"
 )
 
 type Message struct {
@@ -80,6 +81,10 @@ func (m *Message) Match(seqNum uint32, c *imap.SearchCriteria) (bool, error) {
 		return false, err
 	}
 	e, err := message.Read(body)
+	if err != nil {
+		return false, err
+	}
+
 	return backendutil.Match(e, seqNum, m.Uid, m.Date, m.Flags, c)
 }
 

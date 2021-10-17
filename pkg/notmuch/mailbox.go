@@ -2,12 +2,13 @@ package notmuch
 
 import (
 	"fmt"
-	"github.com/emersion/go-imap/backend/backendutil"
-	"github.com/stbenjam/go-imap-notmuch/pkg/maildir"
-	notmuch "github.com/zenhack/go.notmuch"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/emersion/go-imap/backend/backendutil"
+	"github.com/stbenjam/go-imap-notmuch/pkg/maildir"
+	notmuch "github.com/zenhack/go.notmuch"
 
 	"github.com/emersion/go-imap"
 )
@@ -15,7 +16,6 @@ import (
 type Mailbox struct {
 	name     string
 	query    string
-	db       *notmuch.DB
 	uidNext  uint32
 	Messages []*Message
 	maildir  string
@@ -113,17 +113,17 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uint32, error) {
 	notmuchQuery := mbox.query
 	notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, imapSearchToNotmuch(criteria))
-	fmt.Fprintf(os.Stderr, "query is: %s", notmuchQuery)
+	fmt.Fprintf(os.Stderr, "query is: %s\n", notmuchQuery)
 
-	results, err := mbox.db.NewQuery(notmuchQuery).Messages()
+	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
+	if err != nil {
+		return nil, fmt.Errorf("could not open mailbox: %s", err.Error())
+	}
+	defer db.Close()
+
+	results, err := db.NewQuery(notmuchQuery).Messages()
 	if err != nil {
 		return nil, fmt.Errorf("could not search: %s", err.Error())
-	}
-
-	resultID := make([]string, 0)
-	var message *notmuch.Message
-	for results.Next(&message) {
-		resultID = append(resultID, message.ID())
 	}
 
 	ids := make([]uint32, 0)
@@ -132,8 +132,9 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
 			continue
 		}
 
-		for _, result := range resultID {
-			if message.ID == result {
+		var m *notmuch.Message
+		for results.Next(&m) {
+			if message.ID == m.ID() {
 				ids = append(ids, message.Uid)
 			}
 		}
@@ -158,13 +159,19 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 			continue
 		}
 
+		db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
+		if err != nil {
+			return fmt.Errorf("could not open mailbox: %s", err.Error())
+		}
+		defer db.Close()
+
 		msg.Flags = backendutil.UpdateFlags(msg.Flags, op, flags)
-		notMuchMessage, err := mbox.db.FindMessage(msg.ID)
+		notMuchMessage, err := db.FindMessage(msg.ID)
 		if err != nil {
 			return err
 		}
 
-		err = notMuchMessage.Atomic(func(m *notmuch.Message) {
+		if err := notMuchMessage.Atomic(func(m *notmuch.Message) {
 			if err := m.RemoveAllTags(); err != nil {
 				fmt.Fprintf(os.Stderr, "failed to remove tags from message %s: %s", m.ID(), err.Error())
 				return
@@ -175,7 +182,12 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 					return
 				}
 			}
-		})
+		}); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			continue
+		}
+
+
 		if err := notMuchMessage.TagsToMaildirFlags(); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to convert tag to mail dir flags: %s\n", err.Error())
 			continue
@@ -187,12 +199,6 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 		}
 
 		msg.Filename = newFile
-		mbox.db.Close()
-		db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
-		if err != nil {
-			return err
-		}
-		mbox.db = db
 	}
 
 	return nil
@@ -207,9 +213,16 @@ func (mbox *Mailbox) Expunge() error {
 }
 
 func (mbox *Mailbox) loadMessages() {
+	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
+		return
+	}
+	defer db.Close()
+
 	if len(mbox.Messages) == 0 {
 		messages := make([]*Message, 0)
-		query := mbox.db.NewQuery(mbox.query)
+		query := db.NewQuery(mbox.query)
 		results, err := query.Messages()
 		if err != nil {
 			panic(err)
@@ -245,11 +258,6 @@ func (mbox *Mailbox) loadMessages() {
 
 		mbox.Messages = messages
 	}
-}
-
-func removeMessage(results []*Message, index int) []*Message {
-		results[index] = results[len(results)-1]
-		return results[:len(results)-1]
 }
 
 func imapSearchToNotmuch(criteria *imap.SearchCriteria) string {

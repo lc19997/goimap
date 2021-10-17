@@ -2,14 +2,13 @@ package notmuch
 
 import (
 	"fmt"
+
 	"github.com/emersion/go-imap/backend"
-	notmuch "github.com/zenhack/go.notmuch"
 )
 
 type User struct {
 	username  string
 	password  string
-	db        *notmuch.DB
 	mailboxes map[string]*Mailbox
 }
 
