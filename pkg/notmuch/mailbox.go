@@ -16,13 +16,14 @@ import (
 )
 
 type Mailbox struct {
-	name     string
-	query    string
-	uidNext  uint32
-	Messages []*Message
-	maildir  string
-	user     *User
-	lock     *sync.RWMutex
+	Messages    []*Message
+	lock        *sync.RWMutex
+	maildir     string
+	name        string
+	query       string
+	uidNext     uint32
+	user        *User
+	lastUpdated time.Time
 }
 
 func (mbox *Mailbox) Name() string {
@@ -96,8 +97,8 @@ func (mbox *Mailbox) Check() error {
 }
 
 func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
-	mbox.loadMessages()
 	defer close(ch)
+	mbox.loadMessages()
 
 	for i, msg := range mbox.Messages {
 		seqNum := uint32(i + 1)
@@ -324,16 +325,20 @@ func (mbox *Mailbox) loadMessages() {
 	mbox.lock.Lock()
 	defer mbox.lock.Unlock()
 
-	if len(mbox.Messages) > 0 {
-		return
-	}
-
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
 		return
 	}
 	defer db.Close()
+
+	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "position.glass"))
+	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
+	mbox.lastUpdated = stat.ModTime()
+
+	if len(mbox.Messages) > 0 && !needsUpdate {
+		return
+	}
 
 	messages := make([]*Message, 0)
 	query := db.NewQuery(mbox.query)

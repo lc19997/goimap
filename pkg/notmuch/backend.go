@@ -2,18 +2,16 @@ package notmuch
 
 import (
 	"fmt"
-	"sync"
-
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
 	"github.com/stbenjam/go-imap-notmuch/pkg/config"
 	notmuch "github.com/zenhack/go.notmuch"
 	"golang.org/x/crypto/bcrypt"
+	"sync"
 )
 
 type Backend struct {
 	user *User
-	db   *notmuch.DB
 }
 
 func (b *Backend) Login(_ *imap.ConnInfo, username, password string) (backend.User, error) {
@@ -57,6 +55,5 @@ func New(cfg *config.Config) (*Backend, error) {
 
 	return &Backend{
 		user: user,
-		db:   db,
 	}, nil
 }
