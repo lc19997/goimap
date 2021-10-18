@@ -2,12 +2,13 @@ package notmuch
 
 import (
 	"fmt"
+	"sync"
+
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
 	"github.com/stbenjam/go-imap-notmuch/pkg/config"
 	notmuch "github.com/zenhack/go.notmuch"
 	"golang.org/x/crypto/bcrypt"
-	"sync"
 )
 
 type Backend struct {

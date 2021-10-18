@@ -1,8 +1,9 @@
 package maildir
 
 import (
-	"github.com/emersion/go-imap"
 	"strings"
+
+	"github.com/emersion/go-imap"
 )
 
 type Flag rune

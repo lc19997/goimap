@@ -225,10 +225,10 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 	}
 
 	mbox.Messages = append(mbox.Messages, &Message{
-		Uid:   mbox.getNextUID(),
-		Date:  date,
-		Size:  uint32(len(b)),
-		Flags: flags,
+		Uid:      mbox.getNextUID(),
+		Date:     date,
+		Size:     uint32(len(b)),
+		Flags:    flags,
 		Filename: filename,
 	})
 
@@ -550,7 +550,7 @@ func (mbox *Mailbox) newMessageKey() (string, error) {
 	key += strconv.FormatInt(time.Now().Unix(), 10)
 	key += "."
 	host, err := os.Hostname()
-	if err != err {
+	if err != nil {
 		return "", err
 	}
 	host = strings.Replace(host, "/", "\057", -1)
