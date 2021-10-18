@@ -34,6 +34,21 @@ func ImapFlagFromMaildir(maildir Flag) string {
 	}
 }
 
+func MaildirFlagFromImap(imapFlag string) Flag {
+	switch imapFlag {
+	case imap.AnsweredFlag:
+		return FlagReplied
+	case imap.DraftFlag:
+		return FlagDraft
+	case imap.SeenFlag:
+		return FlagSeen
+	case imap.FlaggedFlag:
+		return FlagFlagged
+	default:
+		return Flag(0)
+	}
+}
+
 func NotmuchFlagFromImap(invert bool, imapFlag string) string {
 	switch imapFlag {
 	case imap.AnsweredFlag:

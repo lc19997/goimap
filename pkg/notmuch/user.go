@@ -34,6 +34,10 @@ func (u *User) GetMailbox(name string) (mailbox backend.Mailbox, err error) {
 }
 
 func (u *User) CreateMailbox(name string) error {
+	if _, ok := u.mailboxes[name]; ok {
+		return fmt.Errorf("mailbox already exists")
+	}
+
 	return fmt.Errorf("unsupported operation")
 }
 

@@ -1,9 +1,14 @@
 package notmuch
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -176,6 +181,64 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
 }
 
 func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Literal) error {
+	mbox.lock.Lock()
+	defer mbox.lock.Unlock()
+
+	if date.IsZero() {
+		date = time.Now()
+	}
+
+	filename, err := mbox.newMessageKey()
+	if err != nil {
+		return err
+	}
+
+	maildirFlags := make([]maildir.Flag, 0)
+	for _, flag := range flags {
+		if mdt := maildir.MaildirFlagFromImap(flag); mdt != 0 {
+			maildirFlags = append(maildirFlags, mdt)
+		}
+	}
+
+	if len(maildirFlags) > 0 {
+		filename += ":2,"
+		for _, mdt := range maildirFlags {
+			filename += string(mdt)
+		}
+		filename = path.Join(mbox.maildir, mbox.name, "cur", filename)
+	} else {
+		filename = path.Join(mbox.maildir, mbox.name, "new", filename)
+	}
+
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	b, err := ioutil.ReadAll(body)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(b); err != nil {
+		return err
+	}
+
+	mbox.Messages = append(mbox.Messages, &Message{
+		Uid:   mbox.getNextUID(),
+		Date:  date,
+		Size:  uint32(len(b)),
+		Flags: flags,
+		Filename: filename,
+	})
+
+	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	db.AddMessage(filename)
+
 	return nil
 }
 
@@ -474,4 +537,31 @@ func imapSearchToNotmuch(criteria *imap.SearchCriteria) string {
 	}
 
 	return notmuchQuery
+}
+
+func (mbox *Mailbox) getNextUID() uint32 {
+	mbox.uidNext++
+	return mbox.uidNext
+}
+
+// https://github.com/emersion/go-maildir/blob/ced1977bfb902354b2a8bfbf7517b8d6ba07cccb/maildir.go#L311
+func (mbox *Mailbox) newMessageKey() (string, error) {
+	var key string
+	key += strconv.FormatInt(time.Now().Unix(), 10)
+	key += "."
+	host, err := os.Hostname()
+	if err != err {
+		return "", err
+	}
+	host = strings.Replace(host, "/", "\057", -1)
+	key += host
+	key += "."
+	key += strconv.FormatInt(int64(os.Getpid()), 10)
+	bs := make([]byte, 10)
+	_, err = io.ReadFull(rand.Reader, bs)
+	if err != nil {
+		return "", err
+	}
+	key += hex.EncodeToString(bs)
+	return key, nil
 }
