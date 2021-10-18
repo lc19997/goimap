@@ -1,0 +1,5 @@
+[[rules]]
+  description = "README"
+  [rules.allowlist]
+    description = "README"
+    files = [ '''README.md''']
