@@ -28,6 +28,7 @@ type Mailbox struct {
 	unseen      uint32
 	lastUpdated time.Time
 
+	uidMap      map[string]uint32
 	uidNext     uint32
 	uidValidity uint32
 }
@@ -141,6 +142,7 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
 	if err != nil {
 		return nil, fmt.Errorf("could not open mailbox: %s", err.Error())
 	}
+	defer db.Close()
 
 	results, err := db.NewQuery(notmuchQuery).Messages()
 	if err != nil {
@@ -327,13 +329,12 @@ func (mbox *Mailbox) Expunge() error {
 
 		if deleted {
 			db.RemoveMessage(message.Filename)
+			delete(mbox.uidMap, message.ID)
 		} else {
 			newMessages = append(newMessages, message)
 		}
 	}
 
-	mbox.uidValidity += 1
-	mbox.uidNext = 0
 	mbox.Messages = newMessages
 	return nil
 }
@@ -347,6 +348,7 @@ func (mbox *Mailbox) loadCounts() {
 		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
 		return
 	}
+	defer db.Close()
 
 	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
 	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
@@ -362,6 +364,7 @@ func (mbox *Mailbox) loadMessages() {
 		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
 		return
 	}
+	defer db.Close()
 
 	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "position.glass"))
 	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
@@ -382,7 +385,14 @@ func (mbox *Mailbox) loadMessages() {
 	}
 	var message *notmuch.Message
 	for results.Next(&message) {
-		mbox.uidNext++
+		var myUID uint32
+		if uid, ok := mbox.uidMap[message.ID()]; ok {
+			myUID = uid
+		} else {
+			mbox.uidNext++
+			myUID = mbox.uidNext
+			mbox.uidMap[message.ID()] = myUID
+		}
 
 		f := message.Filename()
 		s, err := os.Stat(f)
@@ -401,7 +411,7 @@ func (mbox *Mailbox) loadMessages() {
 
 		messages = append(messages, &Message{
 			ID:       message.ID(),
-			Uid:      mbox.uidNext,
+			Uid:      myUID,
 			Date:     message.Date(),
 			Filename: f,
 			Flags:    imapFlags,

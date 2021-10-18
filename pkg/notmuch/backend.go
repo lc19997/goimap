@@ -48,6 +48,7 @@ func New(cfg *config.Config) (*Backend, error) {
 			maildir: cfg.Maildir,
 			user:    user,
 			lock:    &sync.RWMutex{},
+			uidMap:  make(map[string]uint32),
 		}
 	}
 
