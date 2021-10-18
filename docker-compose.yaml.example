@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  roundcube:
+    image: roundcube/roundcubemail:latest
+    volumes:
+      - /volume1/roundcube/www:/var/www/html
+      - /volume1/roundcube/db:/var/roundcube/db
+    environment:
+      ROUNDCUBEMAIL_SMTP_SERVER: tls://smtp.example.com
+      ROUNDCUBEMAIL_DEFAULT_PORT: 9143
+      ROUNDCUBEMAIL_DEFAULT_HOST: imap
+    ports:
+      - "9080:80"
+    depends_on:
+      - imap
+  imap:
+    image: quay.io/stbenjam/go-imap-notmuch:latest
+    user: 1026:100
+    volumes:
+      - /volume1/mail:/mail
+      - /volume1/config/config.yml:/config/config.yml
+    entrypoint: ["/app/go-imap-notmuch", "/config/config.yml"]
