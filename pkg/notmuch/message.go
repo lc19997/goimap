@@ -20,8 +20,6 @@ type Message struct {
 	Size     uint32
 	Flags    []string
 	Filename string
-
-	taggedForDelete bool
 }
 
 func (m *Message) headerAndBody() (textproto.Header, io.Reader, error) {

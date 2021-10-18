@@ -21,13 +21,15 @@ type Mailbox struct {
 	maildir  string
 	name     string
 	query    string
-	uidNext  uint32
 	user     *User
 
 	total       uint32
 	recent      uint32
 	unseen      uint32
 	lastUpdated time.Time
+
+	uidNext     uint32
+	uidValidity uint32
 }
 
 func (mbox *Mailbox) Name() string {
@@ -81,7 +83,7 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 		case imap.StatusUidNext:
 			status.UidNext = mbox.uidNext
 		case imap.StatusUidValidity:
-			status.UidValidity = 1
+			status.UidValidity = mbox.uidValidity + 1
 		case imap.StatusRecent:
 			status.Recent = mbox.recent
 		case imap.StatusUnseen:
@@ -152,8 +154,8 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
 	}
 
 	ids := make([]uint32, 0)
-	for _, message := range mbox.Messages {
-		if criteria.SeqNum != nil && !criteria.SeqNum.Contains(message.Uid) {
+	for i, message := range mbox.Messages {
+		if criteria.SeqNum != nil && !criteria.SeqNum.Contains(uint32(i)) {
 			continue
 		}
 
@@ -313,20 +315,27 @@ func (mbox *Mailbox) Expunge() error {
 	}
 	defer db.Close()
 
-	for i, message := range mbox.Messages {
+	newMessages := mbox.Messages[:0]
+	for _, message := range mbox.Messages {
+		deleted := false
 		for _, flag := range message.Flags {
 			if flag == imap.DeletedFlag {
-				db.RemoveMessage(message.Filename)
-				mbox.deleteMessage(i)
+				deleted = true
+				break
 			}
+		}
+
+		if deleted {
+			db.RemoveMessage(message.Filename)
+		} else {
+			newMessages = append(newMessages, message)
 		}
 	}
 
+	mbox.uidValidity += 1
+	mbox.uidNext = 0
+	mbox.Messages = newMessages
 	return nil
-}
-
-func (mbox *Mailbox) deleteMessage(i int) {
-	mbox.Messages = append(mbox.Messages[:i], mbox.Messages[i+1:]...)
 }
 
 func (mbox *Mailbox) loadCounts() {
@@ -340,7 +349,7 @@ func (mbox *Mailbox) loadCounts() {
 	}
 
 	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
-	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:recent", mbox.query)).CountMessages())
+	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
 	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 }
 
@@ -358,7 +367,7 @@ func (mbox *Mailbox) loadMessages() {
 	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
 	mbox.lastUpdated = stat.ModTime()
 
-	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:recent", mbox.query)).CountMessages())
+	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
 	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 
 	if len(mbox.Messages) > 0 && !needsUpdate {
