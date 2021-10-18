@@ -4,12 +4,33 @@
 :---: | :---
 
 
-Not everything works, but I've tested with Evolution and Roundcube and
-it seems to mostly work. Searches work, along with moving between
-folders, marking things read, flagged etc.
+go-imap-notmuch creates an IMAP gateway to your [notmuch](https://notmuchmail.org/) database,
+allowing you to use any client to search notmuch, including converting
+IMAP search semantics to notmuch queries.
+
+If you'd like to directly use notmuch's syntax, you can do a full-text
+search with the notmuch query.
+
+Most of IMAPv4 is implemented, but not everything works. Nor does
+everything work perfectly but I've tested with Evolution and Roundcube
+and it's usable.
 
 Thank you very much to the authors of [notmuch](https://notmuchmail.org/),
 [go-imap](https://github.com/emersion/go-imap) and [go-notmuch](https://github.com/zenhack/go.notmuch) for making this possible.
+
+## Why?
+
+A long time ago, I hosted my own mail server but it's just become too
+difficult to stay out of Junk folders -- despite doing all the right
+things like DKIM, SPF, etc.  I now host my mail on Fastmail, mirror it
+to a Maildir, index with notmuch, and mostly use neomutt. The problem
+with this setup is I can't access messages from my iOS devices easily.
+
+This lets me use a webmail client like Roundcube on my iPhone when I'm
+away from home.
+
+I don't reccomend putting this on the internet, but rather use a VPN
+to get to it.
 
 ## Configuration
 
