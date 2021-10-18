@@ -1,6 +1,6 @@
 # go-imap-notmuch
 
-:bangbang: | This software is experimental, and use at your own risk. Please make a backup of your Maildir and notmuch database before trying to use this.
+:bangbang: | This software is experimental, use at your own risk. Please make a backup of your Maildir and notmuch database before trying to use this.
 :---: | :---
 
 

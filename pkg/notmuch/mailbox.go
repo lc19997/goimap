@@ -153,6 +153,10 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
 
 	ids := make([]uint32, 0)
 	for _, message := range mbox.Messages {
+		if criteria.SeqNum != nil && !criteria.SeqNum.Contains(message.Uid) {
+			continue
+		}
+
 		if criteria.Uid != nil && !criteria.Uid.Contains(message.Uid) {
 			continue
 		}
@@ -303,17 +307,18 @@ func (mbox *Mailbox) Expunge() error {
 	mbox.lock.Lock()
 	defer mbox.lock.Unlock()
 
+	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
 	for i, message := range mbox.Messages {
-		deleted := false
 		for _, flag := range message.Flags {
 			if flag == imap.DeletedFlag {
-				deleted = true
-				break
+				db.RemoveMessage(message.Filename)
+				mbox.deleteMessage(i)
 			}
-		}
-
-		if deleted {
-			mbox.deleteMessage(i)
 		}
 	}
 
@@ -419,8 +424,30 @@ func imapSearchToNotmuch(criteria *imap.SearchCriteria) string {
 
 	if flags := criteria.WithFlags; len(flags) > 0 {
 		for _, flag := range flags {
-			notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, maildir.NotmuchFlagFromImap(flag))
+			notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, maildir.NotmuchFlagFromImap(false, flag))
 		}
+	}
+
+	if flags := criteria.WithoutFlags; len(flags) > 0 {
+		for _, flag := range flags {
+			notmuchQuery = fmt.Sprintf("%s not %s", notmuchQuery, maildir.NotmuchFlagFromImap(true, flag))
+		}
+	}
+
+	if before := criteria.Before; !before.IsZero() {
+		notmuchQuery = fmt.Sprintf("%s date:..@%d", notmuchQuery, before.Unix())
+	}
+
+	if before := criteria.SentBefore; !before.IsZero() {
+		notmuchQuery = fmt.Sprintf("%s date:..@%d", notmuchQuery, before.Unix())
+	}
+
+	if since := criteria.Since; !since.IsZero() {
+		notmuchQuery = fmt.Sprintf("%s date:@%d..", notmuchQuery, since.Unix())
+	}
+
+	if since := criteria.SentSince; !since.IsZero() {
+		notmuchQuery = fmt.Sprintf("%s date:@%d..", notmuchQuery, since.Unix())
 	}
 
 	for _, pair := range criteria.Or {

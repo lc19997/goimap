@@ -20,6 +20,8 @@ type Message struct {
 	Size     uint32
 	Flags    []string
 	Filename string
+
+	taggedForDelete bool
 }
 
 func (m *Message) headerAndBody() (textproto.Header, io.Reader, error) {
@@ -100,6 +102,8 @@ func (m *Message) Tags() []string {
 			tags = append(tags, "draft")
 		case imap.AnsweredFlag:
 			tags = append(tags, "replied")
+		case imap.DeletedFlag:
+			tags = append(tags, "deleted")
 		}
 	}
 

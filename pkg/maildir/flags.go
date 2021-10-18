@@ -18,7 +18,7 @@ const (
 )
 
 func ImapFlagFromMaildir(maildir Flag) string {
-	switch(maildir) {
+	switch maildir {
 	case FlagReplied:
 		return imap.AnsweredFlag
 	case FlagSeen:
@@ -34,16 +34,33 @@ func ImapFlagFromMaildir(maildir Flag) string {
 	}
 }
 
-func NotmuchFlagFromImap(imapFlag string) string {
-	switch(imapFlag) {
+func NotmuchFlagFromImap(invert bool, imapFlag string) string {
+	switch imapFlag {
 	case imap.AnsweredFlag:
+		if invert {
+			return "not tag:replied"
+		}
 		return "tag:replied"
 	case imap.SeenFlag:
-		return "not tag:read"
+		if invert {
+			return "tag:unread"
+		}
+		return "not tag:unread"
 	case imap.DraftFlag:
+		if invert {
+			return "not tag:draft"
+		}
 		return "tag:draft"
 	case imap.FlaggedFlag:
+		if invert {
+			return "not tag:flagged"
+		}
 		return "tag:flagged"
+	case imap.DeletedFlag:
+		if invert {
+			return "not tag:deleted"
+		}
+		return "tag:deleted"
 	default:
 		return ""
 	}
