@@ -16,13 +16,15 @@ import (
 )
 
 type Mailbox struct {
-	Messages    []*Message
-	lock        *sync.RWMutex
-	maildir     string
-	name        string
-	query       string
-	uidNext     uint32
-	user        *User
+	Messages []*Message
+	lock     *sync.RWMutex
+	maildir  string
+	name     string
+	query    string
+	uidNext  uint32
+	user     *User
+
+	total       uint32
 	recent      uint32
 	unseen      uint32
 	lastUpdated time.Time
@@ -66,7 +68,7 @@ func (mbox *Mailbox) unseenSeqNum() uint32 {
 }
 
 func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error) {
-	mbox.loadMessages()
+	mbox.loadCounts()
 
 	status := imap.NewMailboxStatus(mbox.name, items)
 	status.PermanentFlags = []string{"\\*"}
@@ -75,7 +77,7 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 	for _, name := range items {
 		switch name {
 		case imap.StatusMessages:
-			status.Messages = uint32(len(mbox.Messages))
+			status.Messages = mbox.total
 		case imap.StatusUidNext:
 			status.UidNext = mbox.uidNext
 		case imap.StatusUidValidity:
@@ -320,6 +322,21 @@ func (mbox *Mailbox) Expunge() error {
 
 func (mbox *Mailbox) deleteMessage(i int) {
 	mbox.Messages = append(mbox.Messages[:i], mbox.Messages[i+1:]...)
+}
+
+func (mbox *Mailbox) loadCounts() {
+	mbox.lock.Lock()
+	defer mbox.lock.Unlock()
+
+	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
+		return
+	}
+
+	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
+	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:recent", mbox.query)).CountMessages())
+	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 }
 
 func (mbox *Mailbox) loadMessages() {
