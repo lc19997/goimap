@@ -76,6 +76,10 @@ func (u *UidMapper) FindOrAdd(id string) uint32 {
 	return u.Values[id]
 }
 
+func (u *UidMapper) Remove(id string) {
+	delete(u.Values, id)
+}
+
 func (u *UidMapper) setDefaults(path string) *UidMapper {
 	if u.Validity == 0 {
 		u.Validity = 1

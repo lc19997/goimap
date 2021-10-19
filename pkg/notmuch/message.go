@@ -48,7 +48,10 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 		case imap.FetchBody, imap.FetchBodyStructure:
 			hdr, body, err := m.headerAndBody()
 			if err == nil {
-				fetched.BodyStructure, _ = backendutil.FetchBodyStructure(hdr, body, item == imap.FetchBodyStructure)
+				fetched.BodyStructure, err = backendutil.FetchBodyStructure(hdr, body, item == imap.FetchBodyStructure)
+				if err != nil {
+					fetched.BodyStructure = &imap.BodyStructure{}
+				}
 			}
 		case imap.FetchFlags:
 			fetched.Flags = m.Flags

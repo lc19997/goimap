@@ -284,6 +284,7 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 				return
 			}
 			for _, tag := range msg.Tags() {
+				fmt.Printf("Adding tag %s\n", tag)
 				if err := notMuchMessage.AddTag(tag); err != nil {
 					fmt.Fprintf(os.Stderr, "failed to add tag to message %s: %s\n", m.ID(), err.Error())
 					return
@@ -343,7 +344,7 @@ func (mbox *Mailbox) MoveMessages(uid bool, seqset *imap.SeqSet, dest string) er
 			continue
 		}
 
-		message, err := db.FindMessage(msg.ID)
+		message, err := db.FindMessageByFilename(msg.Filename)
 		if err != nil {
 			fmt.Fprint(os.Stderr, err.Error())
 			continue
@@ -370,7 +371,6 @@ func (mbox *Mailbox) MoveMessages(uid bool, seqset *imap.SeqSet, dest string) er
 
 		db.RemoveMessage(message.Filename())
 		db.AddMessage(destPath)
-		//delete(mbox.uidMap, message.ID())
 		if destBox, ok := mbox.user.mailboxes[dest]; ok {
 			destBox.Expire() // Expire any cached messages
 		}
@@ -401,8 +401,9 @@ func (mbox *Mailbox) Expunge() error {
 		}
 
 		if deleted {
+			fmt.Printf("Removing %s\n", message.ID)
+			mbox.uidMapper.Remove(message.ID)
 			db.RemoveMessage(message.Filename)
-			//delete(mbox.uidMap, message.ID)
 		} else {
 			newMessages = append(newMessages, message)
 		}
