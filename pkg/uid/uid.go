@@ -3,6 +3,7 @@ package uid
 import (
 	"encoding/gob"
 	"os"
+	"sync"
 )
 
 type UidMapper struct {
@@ -10,6 +11,7 @@ type UidMapper struct {
 	Next     uint32
 	Values   map[string]uint32
 	Path     string
+	lock     *sync.RWMutex
 }
 
 func New(path string) (*UidMapper, error) {
@@ -41,10 +43,14 @@ func New(path string) (*UidMapper, error) {
 		return nil, err
 	}
 
+	mapper.lock = &sync.RWMutex{}
 	return mapper.setDefaults(path), nil
 }
 
 func (u *UidMapper) Flush() error {
+	u.lock.Lock()
+	defer u.lock.Unlock()
+
 	file, err := os.OpenFile(u.Path, os.O_WRONLY, 644)
 	if err != nil {
 		return err
@@ -59,10 +65,12 @@ func (u *UidMapper) Flush() error {
 }
 
 func (u *UidMapper) FindOrAdd(id string) uint32 {
+	u.lock.Lock()
+	defer u.lock.Unlock()
+
 	if _, ok := u.Values[id]; !ok {
 		u.Values[id] = u.Next
 		u.Next++
-		u.Flush()
 	}
 
 	return u.Values[id]
