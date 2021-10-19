@@ -22,18 +22,18 @@ type Message struct {
 	Filename string
 }
 
-func (m *Message) headerAndBody() (textproto.Header, io.Reader, error) {
+func (m *Message) headerAndBody() (*os.File, textproto.Header, io.Reader, error) {
 	f, err := os.Open(m.Filename)
 	if err != nil {
-		return textproto.Header{}, nil, err
+		return nil, textproto.Header{}, nil, err
 	}
 	body := bufio.NewReader(f)
 	hdr, err := textproto.ReadHeader(body)
 	if err != nil {
-		return textproto.Header{}, nil, err
+		return nil, textproto.Header{}, nil, err
 	}
 
-	return hdr, body, nil
+	return f, hdr, body, nil
 }
 
 func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, error) {
@@ -41,17 +41,21 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 	for _, item := range items {
 		switch item {
 		case imap.FetchEnvelope:
-			hdr, _, err := m.headerAndBody()
-			if err == nil {
-				fetched.Envelope, _ = backendutil.FetchEnvelope(hdr)
+			f, hdr, _, err := m.headerAndBody()
+			if err != nil {
+				continue
 			}
+			defer f.Close()
+			fetched.Envelope, _ = backendutil.FetchEnvelope(hdr)
 		case imap.FetchBody, imap.FetchBodyStructure:
-			hdr, body, err := m.headerAndBody()
-			if err == nil {
-				fetched.BodyStructure, err = backendutil.FetchBodyStructure(hdr, body, item == imap.FetchBodyStructure)
-				if err != nil {
-					fetched.BodyStructure = &imap.BodyStructure{}
-				}
+			f, hdr, body, err := m.headerAndBody()
+			if err != nil {
+				continue
+			}
+			defer f.Close()
+			fetched.BodyStructure, err = backendutil.FetchBodyStructure(hdr, body, item == imap.FetchBodyStructure)
+			if err != nil {
+				fetched.BodyStructure = &imap.BodyStructure{}
 			}
 		case imap.FetchFlags:
 			fetched.Flags = m.Flags
@@ -62,10 +66,11 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 		case imap.FetchUid:
 			fetched.Uid = m.Uid
 		default:
-			hdr, body, err := m.headerAndBody()
+			f, hdr, body, err := m.headerAndBody()
 			if err != nil {
-				break
+				continue
 			}
+			defer f.Close()
 			section, err := imap.ParseBodySectionName(item)
 			if err != nil {
 				break
@@ -81,10 +86,11 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 }
 
 func (m *Message) Match(seqNum uint32, c *imap.SearchCriteria) (bool, error) {
-	_, body, err := m.headerAndBody()
+	f, _, body, err := m.headerAndBody()
 	if err != nil {
 		return false, err
 	}
+	defer f.Close()
 	e, err := message.Read(body)
 	if err != nil {
 		return false, err
