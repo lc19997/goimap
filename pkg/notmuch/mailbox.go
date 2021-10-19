@@ -243,6 +243,10 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 	message.Uid = mbox.uidMapper.FindOrAdd(nmm.ID())
 	db.Close()
 
+	if err := mbox.uidMapper.Flush(); err != nil {
+		return err
+	}
+
 	mbox.Messages = append(mbox.Messages, message)
 	return nil
 }
@@ -478,7 +482,11 @@ func (mbox *Mailbox) loadMessages() {
 			Size:     uint32(s.Size()),
 		})
 	}
-	mbox.uidMapper.Flush()
+
+	if err := mbox.uidMapper.Flush(); err != nil {
+		fmt.Fprintf(os.Stderr,  err.Error())
+	}
+
 	mbox.Messages = messages
 }
 

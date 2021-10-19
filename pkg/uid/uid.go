@@ -8,9 +8,8 @@ import (
 type UidMapper struct {
 	Validity uint32
 	Next     uint32
-
-	values map[string]uint32
-	path   string
+	Values   map[string]uint32
+	Path     string
 }
 
 func New(path string) (*UidMapper, error) {
@@ -23,7 +22,7 @@ func New(path string) (*UidMapper, error) {
 			return nil, err
 		}
 		encoder := gob.NewEncoder(file)
-		if err := encoder.Encode(mapper.setDefaults()); err != nil {
+		if err := encoder.Encode(mapper.setDefaults(path)); err != nil {
 			return nil, err
 		}
 		file.Close()
@@ -42,16 +41,17 @@ func New(path string) (*UidMapper, error) {
 		return nil, err
 	}
 
-	return mapper.setDefaults(), nil
+	return mapper.setDefaults(path), nil
 }
 
 func (u *UidMapper) Flush() error {
-	file, err := os.Open(u.path)
+	file, err := os.OpenFile(u.Path, os.O_WRONLY, 644)
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	encoder := gob.NewEncoder(file)
-	if err := encoder.Encode(*u); err != nil {
+	if err := encoder.Encode(&u); err != nil {
 		return err
 	}
 
@@ -59,15 +59,16 @@ func (u *UidMapper) Flush() error {
 }
 
 func (u *UidMapper) FindOrAdd(id string) uint32 {
-	if _, ok := u.values[id]; !ok {
-		u.values[id] = u.Next
+	if _, ok := u.Values[id]; !ok {
+		u.Values[id] = u.Next
 		u.Next++
+		u.Flush()
 	}
 
-	return u.values[id]
+	return u.Values[id]
 }
 
-func (u *UidMapper) setDefaults() *UidMapper {
+func (u *UidMapper) setDefaults(path string) *UidMapper {
 	if u.Validity == 0 {
 		u.Validity = 1
 	}
@@ -76,9 +77,12 @@ func (u *UidMapper) setDefaults() *UidMapper {
 		u.Next = 1
 	}
 
-	if u.values == nil {
-		u.values = make(map[string]uint32)
+	if u.Values == nil {
+		u.Values = make(map[string]uint32)
 	}
 
+	if u.Path == "" {
+		u.Path = path
+	}
 	return u
 }
