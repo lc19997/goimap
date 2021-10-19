@@ -3,7 +3,6 @@ package notmuch
 import (
 	"fmt"
 	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
-	"path"
 	"sync"
 
 	"github.com/emersion/go-imap"
@@ -15,7 +14,7 @@ import (
 
 type Backend struct {
 	user      *User
-	uidMapper *uid.UidMapper
+	uidMapper *uid.Mapper
 }
 
 func (b *Backend) Login(_ *imap.ConnInfo, username, password string) (backend.User, error) {
@@ -35,10 +34,9 @@ func New(cfg *config.Config) (*Backend, error) {
 	if err != nil {
 		return nil, err
 	}
-	dbPath := db.Path()
 	db.Close()
 
-	uidMapper, err := uid.New(path.Join(dbPath, ".uid.dat"))
+	uidMapper, err := uid.New(cfg.UidDatabase)
 	if err != nil {
 		return nil, err
 	}
@@ -52,11 +50,11 @@ func New(cfg *config.Config) (*Backend, error) {
 	mailboxes := make(map[string]*Mailbox)
 	for _, mailbox := range cfg.Mailboxes {
 		mailboxes[mailbox.Name] = &Mailbox{
-			name:    mailbox.Name,
-			query:   mailbox.Query,
-			maildir: cfg.Maildir,
-			user:    user,
-			lock:    &sync.RWMutex{},
+			name:      mailbox.Name,
+			query:     mailbox.Query,
+			maildir:   cfg.Maildir,
+			user:      user,
+			lock:      &sync.RWMutex{},
 			uidMapper: uidMapper,
 		}
 	}

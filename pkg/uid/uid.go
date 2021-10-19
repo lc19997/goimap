@@ -1,3 +1,6 @@
+// Package uid contains a simple mapper for UID (an integer value) and the notmuch
+// database ID (a string) and persists it to disk. UID and Validity together must
+// permanently refer to a specific message, otherwise your MUA may be get confused.
 package uid
 
 import (
@@ -6,16 +9,17 @@ import (
 	"sync"
 )
 
-type UidMapper struct {
+type Mapper struct {
 	Validity uint32
 	Next     uint32
 	Values   map[string]uint32
-	Path     string
-	lock     *sync.RWMutex
+
+	path string
+	lock *sync.RWMutex
 }
 
-func New(path string) (*UidMapper, error) {
-	mapper := UidMapper{}
+func New(path string) (*Mapper, error) {
+	mapper := Mapper{}
 
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
@@ -47,11 +51,11 @@ func New(path string) (*UidMapper, error) {
 	return mapper.setDefaults(path), nil
 }
 
-func (u *UidMapper) Flush() error {
+func (u *Mapper) Flush() error {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 
-	file, err := os.OpenFile(u.Path, os.O_WRONLY, 644)
+	file, err := os.OpenFile(u.path, os.O_WRONLY, 644)
 	if err != nil {
 		return err
 	}
@@ -64,7 +68,7 @@ func (u *UidMapper) Flush() error {
 	return nil
 }
 
-func (u *UidMapper) FindOrAdd(id string) uint32 {
+func (u *Mapper) FindOrAdd(id string) uint32 {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 
@@ -76,11 +80,13 @@ func (u *UidMapper) FindOrAdd(id string) uint32 {
 	return u.Values[id]
 }
 
-func (u *UidMapper) Remove(id string) {
+func (u *Mapper) Remove(id string) {
+	u.lock.Lock()
+	defer u.lock.Unlock()
 	delete(u.Values, id)
 }
 
-func (u *UidMapper) setDefaults(path string) *UidMapper {
+func (u *Mapper) setDefaults(path string) *Mapper {
 	if u.Validity == 0 {
 		u.Validity = 1
 	}
@@ -93,8 +99,8 @@ func (u *UidMapper) setDefaults(path string) *UidMapper {
 		u.Values = make(map[string]uint32)
 	}
 
-	if u.Path == "" {
-		u.Path = path
+	if u.path == "" {
+		u.path = path
 	}
 	return u
 }

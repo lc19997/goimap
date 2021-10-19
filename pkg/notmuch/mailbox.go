@@ -34,7 +34,7 @@ type Mailbox struct {
 	unseen      uint32
 	lastUpdated time.Time
 
-	uidMapper   *uid.UidMapper
+	uidMapper   *uid.Mapper
 }
 
 func (mbox *Mailbox) Name() string {
