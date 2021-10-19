@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"os"
@@ -34,7 +35,18 @@ func main() {
 	s.Debug = os.Stderr
 
 	s.Addr = ":9143"
-	s.AllowInsecureAuth = true
+
+	if cfg.TLSCertificate != "" && cfg.TLSKey != "" {
+		certs, err := tls.LoadX509KeyPair(cfg.TLSCertificate, cfg.TLSKey)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "could not load certificates: %s", err.Error())
+			os.Exit(1)
+		}
+
+		s.TLSConfig = &tls.Config{Certificates: []tls.Certificate{certs}}
+	} else {
+		s.AllowInsecureAuth = true
+	}
 	if err := s.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}

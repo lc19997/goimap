@@ -12,10 +12,12 @@ const (
 )
 
 type Config struct {
-	Username  string    `yaml:"username"`
-	Password  string    `yaml:"password"`
-	Maildir   string    `yaml:"maildir"`
-	Mailboxes []Mailbox `yaml:"mailboxes"`
+	Username       string    `yaml:"username"`
+	Password       string    `yaml:"password"`
+	Maildir        string    `yaml:"maildir"`
+	Mailboxes      []Mailbox `yaml:"mailboxes"`
+	TLSCertificate string    `yaml:"tlsCertificate"`
+	TLSKey         string    `yaml:"tlsKey"`
 }
 
 type Mailbox struct {
