@@ -70,8 +70,10 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 			if err != nil {
 				break
 			}
-			l, _ := backendutil.FetchBodySection(hdr, body, section)
-			fetched.Body[section] = l
+			l, err := backendutil.FetchBodySection(hdr, body, section)
+			if err == nil {
+				fetched.Body[section] = l
+			}
 		}
 	}
 
