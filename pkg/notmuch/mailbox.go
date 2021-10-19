@@ -224,13 +224,15 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 		return err
 	}
 
-	mbox.Messages = append(mbox.Messages, &Message{
+	message := &Message{
 		Uid:      mbox.getNextUID(),
 		Date:     date,
 		Size:     uint32(len(b)),
 		Flags:    flags,
 		Filename: filename,
-	})
+	}
+
+	mbox.Messages = append(mbox.Messages, message)
 
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
 	if err != nil {
@@ -361,6 +363,7 @@ func (mbox *Mailbox) MoveMessages(uid bool, seqset *imap.SeqSet, dest string) er
 
 		db.RemoveMessage(message.Filename())
 		db.AddMessage(destPath)
+		delete(mbox.uidMap, message.ID())
 		if destBox, ok := mbox.user.mailboxes[dest]; ok {
 			destBox.Expire() // Expire any cached messages
 		}
