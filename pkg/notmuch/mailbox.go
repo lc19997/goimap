@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
 	"io"
 	"io/ioutil"
 	"os"
@@ -33,9 +34,7 @@ type Mailbox struct {
 	unseen      uint32
 	lastUpdated time.Time
 
-	uidMap      map[string]uint32
-	uidNext     uint32
-	uidValidity uint32
+	uidMapper   *uid.UidMapper
 }
 
 func (mbox *Mailbox) Name() string {
@@ -87,9 +86,9 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 		case imap.StatusMessages:
 			status.Messages = mbox.total
 		case imap.StatusUidNext:
-			status.UidNext = mbox.uidNext
+			status.UidNext = mbox.uidMapper.Next
 		case imap.StatusUidValidity:
-			status.UidValidity = mbox.uidValidity + 1
+			status.UidValidity = mbox.uidMapper.Validity
 		case imap.StatusRecent:
 			status.Recent = mbox.recent
 		case imap.StatusUnseen:
@@ -225,22 +224,26 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 	}
 
 	message := &Message{
-		Uid:      mbox.getNextUID(),
 		Date:     date,
 		Size:     uint32(len(b)),
 		Flags:    flags,
 		Filename: filename,
 	}
 
-	mbox.Messages = append(mbox.Messages, message)
-
+	// Add message
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	db.AddMessage(filename)
+	nmm, err := db.AddMessage(filename)
+	if err != nil {
+		return err
+	}
+	message.Uid = mbox.uidMapper.FindOrAdd(nmm.ID())
+	db.Close()
 
+	mbox.Messages = append(mbox.Messages, message)
 	return nil
 }
 
@@ -363,7 +366,7 @@ func (mbox *Mailbox) MoveMessages(uid bool, seqset *imap.SeqSet, dest string) er
 
 		db.RemoveMessage(message.Filename())
 		db.AddMessage(destPath)
-		delete(mbox.uidMap, message.ID())
+		//delete(mbox.uidMap, message.ID())
 		if destBox, ok := mbox.user.mailboxes[dest]; ok {
 			destBox.Expire() // Expire any cached messages
 		}
@@ -395,7 +398,7 @@ func (mbox *Mailbox) Expunge() error {
 
 		if deleted {
 			db.RemoveMessage(message.Filename)
-			delete(mbox.uidMap, message.ID)
+			//delete(mbox.uidMap, message.ID)
 		} else {
 			newMessages = append(newMessages, message)
 		}
@@ -451,15 +454,6 @@ func (mbox *Mailbox) loadMessages() {
 	}
 	var message *notmuch.Message
 	for results.Next(&message) {
-		var myUID uint32
-		if uid, ok := mbox.uidMap[message.ID()]; ok {
-			myUID = uid
-		} else {
-			mbox.uidNext++
-			myUID = mbox.uidNext
-			mbox.uidMap[message.ID()] = myUID
-		}
-
 		f := message.Filename()
 		s, err := os.Stat(f)
 		if err != nil {
@@ -477,14 +471,14 @@ func (mbox *Mailbox) loadMessages() {
 
 		messages = append(messages, &Message{
 			ID:       message.ID(),
-			Uid:      myUID,
+			Uid:      mbox.uidMapper.FindOrAdd(message.ID()),
 			Date:     message.Date(),
 			Filename: f,
 			Flags:    imapFlags,
 			Size:     uint32(s.Size()),
 		})
 	}
-
+	mbox.uidMapper.Flush()
 	mbox.Messages = messages
 }
 
@@ -540,11 +534,6 @@ func imapSearchToNotmuch(criteria *imap.SearchCriteria) string {
 	}
 
 	return notmuchQuery
-}
-
-func (mbox *Mailbox) getNextUID() uint32 {
-	mbox.uidNext++
-	return mbox.uidNext
 }
 
 // https://github.com/emersion/go-maildir/blob/ced1977bfb902354b2a8bfbf7517b8d6ba07cccb/maildir.go#L311
