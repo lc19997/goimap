@@ -139,7 +139,7 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
 	mbox.loadMessages()
 
 	notmuchQuery := mbox.query
-	notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, imapSearchToNotmuch(criteria))
+	notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, imapSearchToNotmuch(criteria, true))
 	fmt.Fprintf(os.Stderr, "query is: %s\n", notmuchQuery)
 
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
@@ -491,22 +491,18 @@ func (mbox *Mailbox) loadMessages() {
 	mbox.Messages = messages
 }
 
-func imapSearchToNotmuch(criteria *imap.SearchCriteria) string {
+func imapSearchToNotmuch(criteria *imap.SearchCriteria, topLevel bool) string {
 	notmuchQuery := ""
 
 	if len(criteria.Text) > 0 {
 		notmuchQuery = strings.Join(criteria.Text, " ")
 	}
 
-	if values := criteria.Header.Values("From"); len(values) > 0 {
-		for _, value := range values {
-			notmuchQuery = fmt.Sprintf("%s from:%s", notmuchQuery, value)
-		}
-	}
-
-	if values := criteria.Header.Values("Subject"); len(values) > 0 {
-		for _, value := range values {
-			notmuchQuery = fmt.Sprintf("%s subject:%s", notmuchQuery, value)
+	for _, header := range []string{"from", "subject", "to", "cc"} {
+		if values := criteria.Header.Values(header); len(values) > 0 {
+			for _, value := range values {
+				notmuchQuery = fmt.Sprintf("%s %s:%s", notmuchQuery, header, value)
+			}
 		}
 	}
 
@@ -518,7 +514,7 @@ func imapSearchToNotmuch(criteria *imap.SearchCriteria) string {
 
 	if flags := criteria.WithoutFlags; len(flags) > 0 {
 		for _, flag := range flags {
-			notmuchQuery = fmt.Sprintf("%s not %s", notmuchQuery, maildir.NotmuchFlagFromImap(true, flag))
+			notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, maildir.NotmuchFlagFromImap(true, flag))
 		}
 	}
 
@@ -538,8 +534,20 @@ func imapSearchToNotmuch(criteria *imap.SearchCriteria) string {
 		notmuchQuery = fmt.Sprintf("%s date:@%d..", notmuchQuery, since.Unix())
 	}
 
+	if topLevel && len(criteria.Or) > 0 {
+		notmuchQuery = notmuchQuery + " and ("
+	}
+
 	for _, pair := range criteria.Or {
-		notmuchQuery = fmt.Sprintf("%s and (%s or %s)", notmuchQuery, imapSearchToNotmuch(pair[0]), imapSearchToNotmuch(pair[1]))
+		notmuchQuery = fmt.Sprintf("%s %s or %s", notmuchQuery, imapSearchToNotmuch(pair[0], false), imapSearchToNotmuch(pair[1], false))
+	}
+
+	if topLevel && len(criteria.Or) > 0 {
+		notmuchQuery = notmuchQuery + ")"
+	}
+
+	for _, not := range criteria.Not {
+		notmuchQuery = fmt.Sprintf("%s not %s", notmuchQuery, imapSearchToNotmuch(not, false))
 	}
 
 	return notmuchQuery
