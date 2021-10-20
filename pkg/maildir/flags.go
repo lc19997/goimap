@@ -45,6 +45,8 @@ func MaildirFlagFromImap(imapFlag string) Flag {
 		return FlagSeen
 	case imap.FlaggedFlag:
 		return FlagFlagged
+	case imap.DeletedFlag:
+		return FlagTrashed
 	default:
 		return Flag(0)
 	}
