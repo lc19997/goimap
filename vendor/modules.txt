@@ -16,7 +16,7 @@ github.com/emersion/go-message/textproto
 github.com/emersion/go-sasl
 # github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594
 github.com/emersion/go-textwrapper
-# github.com/zenhack/go.notmuch v0.0.0-20200930180226-732f6524c33d
+# github.com/zenhack/go.notmuch v0.0.0-20200930180226-732f6524c33d => github.com/stbenjam/go.notmuch v0.0.0-20211020000856-ac412a4e5b67
 ## explicit
 github.com/zenhack/go.notmuch
 # golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
@@ -30,3 +30,4 @@ golang.org/x/text/transform
 # gopkg.in/yaml.v2 v2.4.0
 ## explicit
 gopkg.in/yaml.v2
+# github.com/zenhack/go.notmuch => github.com/stbenjam/go.notmuch v0.0.0-20211020000856-ac412a4e5b67
