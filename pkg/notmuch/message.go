@@ -45,18 +45,18 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 			if err != nil {
 				continue
 			}
-			defer f.Close()
 			fetched.Envelope, _ = backendutil.FetchEnvelope(hdr)
+			f.Close()
 		case imap.FetchBody, imap.FetchBodyStructure:
 			f, hdr, body, err := m.headerAndBody()
 			if err != nil {
 				continue
 			}
-			defer f.Close()
 			fetched.BodyStructure, err = backendutil.FetchBodyStructure(hdr, body, item == imap.FetchBodyStructure)
 			if err != nil {
 				fetched.BodyStructure = &imap.BodyStructure{}
 			}
+			f.Close()
 		case imap.FetchFlags:
 			fetched.Flags = m.Flags
 		case imap.FetchInternalDate:
@@ -70,7 +70,6 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 			if err != nil {
 				continue
 			}
-			defer f.Close()
 			section, err := imap.ParseBodySectionName(item)
 			if err != nil {
 				break
@@ -79,6 +78,7 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 			if err == nil {
 				fetched.Body[section] = l
 			}
+			f.Close()
 		}
 	}
 

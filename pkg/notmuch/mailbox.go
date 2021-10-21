@@ -53,6 +53,8 @@ func (mbox *Mailbox) Expire() {
 	mbox.lock.Lock()
 	defer mbox.lock.Unlock()
 	mbox.Messages = nil
+	mbox.total = 0
+	mbox.unseen = 0
 }
 
 func (mbox *Mailbox) unseenSeqNum() uint32 {
@@ -110,6 +112,8 @@ func (mbox *Mailbox) Check() error {
 func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
 	defer close(ch)
 	mbox.loadMessages()
+	mbox.lock.Lock()
+	defer mbox.lock.Unlock()
 
 	for i, msg := range mbox.Messages {
 		seqNum := uint32(i + 1)
@@ -252,8 +256,15 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 }
 
 func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.FlagsOp, flags []string) error {
+	mbox.loadMessages()
 	mbox.lock.Lock()
 	defer mbox.lock.Unlock()
+
+	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
+	if err != nil {
+		return fmt.Errorf("could not open mailbox: %s", err.Error())
+	}
+	defer db.Close()
 
 	for i, msg := range mbox.Messages {
 		var id uint32
@@ -265,12 +276,6 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 		if !seqset.Contains(id) {
 			continue
 		}
-
-		db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
-		if err != nil {
-			return fmt.Errorf("could not open mailbox: %s", err.Error())
-		}
-		defer db.Close()
 
 		msg.Flags = backendutil.UpdateFlags(msg.Flags, op, flags)
 		notMuchMessage, err := db.FindMessage(msg.ID)
@@ -312,7 +317,7 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 }
 
 func (mbox *Mailbox) CopyMessages(uid bool, seqset *imap.SeqSet, destName string) error {
-	return nil
+	return fmt.Errorf("not implemented")
 }
 
 func (mbox *Mailbox) MoveMessages(uid bool, seqset *imap.SeqSet, dest string) error {
@@ -414,9 +419,6 @@ func (mbox *Mailbox) Expunge() error {
 }
 
 func (mbox *Mailbox) loadCounts() {
-	mbox.lock.Lock()
-	defer mbox.lock.Unlock()
-
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
@@ -424,15 +426,14 @@ func (mbox *Mailbox) loadCounts() {
 	}
 	defer db.Close()
 
+	mbox.lock.Lock()
+	defer mbox.lock.Unlock()
 	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
 	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
 	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 }
 
 func (mbox *Mailbox) loadMessages() {
-	mbox.lock.Lock()
-	defer mbox.lock.Unlock()
-
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
@@ -440,10 +441,11 @@ func (mbox *Mailbox) loadMessages() {
 	}
 	defer db.Close()
 
+	mbox.lock.Lock()
+	defer mbox.lock.Unlock()
 	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "position.glass"))
 	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
 	mbox.lastUpdated = stat.ModTime()
-
 	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
 	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 
