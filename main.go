@@ -31,8 +31,10 @@ func main() {
 		panic(err)
 	}
 	s := server.New(be)
-	s.Debug = os.Stderr
 
+	if cfg.Debug {
+		s.Debug = os.Stderr
+	}
 	s.Addr = ":9143"
 
 	if cfg.TLSCertificate != "" && cfg.TLSKey != "" {

@@ -37,6 +37,9 @@ type Config struct {
 	// key.
 	TLSCertificate string `yaml:"tlsCertificate"`
 	TLSKey         string `yaml:"tlsKey"`
+
+	// Enable debug logging in go-imap
+	Debug bool `yaml:"debug"`
 }
 
 type Mailbox struct {
