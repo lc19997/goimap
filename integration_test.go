@@ -35,13 +35,11 @@ func TestNotmuchIMAP(t *testing.T) {
 	})
 	defer c.Logout()
 
-	t.Run("can find INBOX", func(t *testing.T) {
+	t.Run("can find inbox", func(*testing.T) {
 		// Check mailboxes
 		mailboxes := make(chan *imap.MailboxInfo, 1)
 		done := make(chan error, 1)
-		go func() {
-			done <- c.List("", "*", mailboxes)
-		}()
+		done <- c.List("", "*", mailboxes)
 		found := false
 		for m := range mailboxes {
 			if m.Name == "INBOX" {
@@ -64,17 +62,14 @@ func TestNotmuchIMAP(t *testing.T) {
 		seqset.AddRange(i, i)
 		messages := make(chan *imap.Message, 10)
 		done := make(chan error, 1)
-		go func() {
-			done <- c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope}, messages)
-		}()
-
+		done <- c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope}, messages)
 		for msg := range messages {
 			if msg.Envelope.Subject == "[notmuch] [PATCH 1/2] Close message file after parsing message headers" {
 				return
 			}
 		}
 
-		t.Fatal("couldn't load last message from mailbox")
+		t.Error("couldn't load last message from mailbox")
 	})
 
 	t.Run("can search mailbox", func(t *testing.T) {
@@ -86,8 +81,8 @@ func TestNotmuchIMAP(t *testing.T) {
 		after, _ := time.Parse("2006-01-02T15:04:05.000Z", "2009-11-18T00:00:00.000Z")
 		before, _ := time.Parse("2006-01-02T15:04:05.000Z", "2010-12-30T00:00:00.000Z")
 		seqNums, err := c.Search(&imap.SearchCriteria{
-			Since:  after,
-			Before: before,
+			Since:        after,
+			Before:       before,
 			WithoutFlags: []string{imap.SeenFlag},
 			Or: [][2]*imap.SearchCriteria{
 				{
