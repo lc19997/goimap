@@ -34,7 +34,7 @@ type Mailbox struct {
 	unseen      uint32
 	lastUpdated time.Time
 
-	uidMapper   *uid.Mapper
+	uidMapper *uid.Mapper
 }
 
 func (mbox *Mailbox) Name() string {
@@ -374,8 +374,12 @@ func (mbox *Mailbox) MoveMessages(uid bool, seqset *imap.SeqSet, dest string) er
 			continue
 		}
 
-		db.RemoveMessage(message.Filename())
-		db.AddMessage(destPath)
+		if err := db.RemoveMessage(message.Filename()); err != nil {
+			return err
+		}
+		if _, err = db.AddMessage(destPath); err != nil {
+			return err
+		}
 		if destBox, ok := mbox.user.mailboxes[dest]; ok {
 			destBox.Expire() // Expire any cached messages
 		}
@@ -408,7 +412,9 @@ func (mbox *Mailbox) Expunge() error {
 		if deleted {
 			fmt.Printf("Removing %s\n", message.ID)
 			mbox.uidMapper.Remove(message.ID)
-			db.RemoveMessage(message.Filename)
+			if err := db.RemoveMessage(message.Filename); err != nil {
+				return err
+			}
 		} else {
 			newMessages = append(newMessages, message)
 		}
@@ -487,7 +493,7 @@ func (mbox *Mailbox) loadMessages() {
 	}
 
 	if err := mbox.uidMapper.Flush(); err != nil {
-		fmt.Fprintf(os.Stderr,  err.Error())
+		fmt.Fprintln(os.Stderr, err.Error())
 	}
 
 	mbox.Messages = messages

@@ -55,7 +55,7 @@ func (u *Mapper) Flush() error {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 
-	file, err := os.OpenFile(u.path, os.O_WRONLY, 644)
+	file, err := os.OpenFile(u.path, os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
