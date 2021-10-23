@@ -1,0 +1,16 @@
+name: publish-image
+on:
+  push:
+    branches:
+      - main
+jobs:
+  quay:
+    name: quay
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: false
+          tags: quay.io/stbenjam/go-imap-notmuch
