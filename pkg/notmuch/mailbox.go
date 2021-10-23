@@ -1,16 +1,11 @@
 package notmuch
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -142,8 +137,11 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uint32, error) {
 	mbox.loadMessages()
 
-	notmuchQuery := mbox.query
-	notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, imapSearchToNotmuch(criteria, true))
+	notmuchQuery, err := IMAPSearchToNotmuch(criteria, true)
+	if err != nil {
+		return nil, err
+	}
+	notmuchQuery = mbox.query + " " + notmuchQuery
 	fmt.Fprintf(os.Stderr, "query is: %s\n", notmuchQuery)
 
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
@@ -449,7 +447,7 @@ func (mbox *Mailbox) loadMessages() {
 
 	mbox.lock.Lock()
 	defer mbox.lock.Unlock()
-	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "position.glass"))
+	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "flintlock"))
 	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
 	mbox.lastUpdated = stat.ModTime()
 	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
@@ -497,88 +495,4 @@ func (mbox *Mailbox) loadMessages() {
 	}
 
 	mbox.Messages = messages
-}
-
-func imapSearchToNotmuch(criteria *imap.SearchCriteria, topLevel bool) string {
-	notmuchQuery := ""
-
-	if len(criteria.Text) > 0 {
-		notmuchQuery = strings.Join(criteria.Text, " ")
-	}
-
-	for _, header := range []string{"from", "subject", "to", "cc"} {
-		if values := criteria.Header.Values(header); len(values) > 0 {
-			for _, value := range values {
-				notmuchQuery = fmt.Sprintf("%s %s:%s", notmuchQuery, header, value)
-			}
-		}
-	}
-
-	if flags := criteria.WithFlags; len(flags) > 0 {
-		for _, flag := range flags {
-			notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, maildir.NotmuchFlagFromImap(false, flag))
-		}
-	}
-
-	if flags := criteria.WithoutFlags; len(flags) > 0 {
-		for _, flag := range flags {
-			notmuchQuery = fmt.Sprintf("%s %s", notmuchQuery, maildir.NotmuchFlagFromImap(true, flag))
-		}
-	}
-
-	if before := criteria.Before; !before.IsZero() {
-		notmuchQuery = fmt.Sprintf("%s date:..@%d", notmuchQuery, before.Unix())
-	}
-
-	if before := criteria.SentBefore; !before.IsZero() {
-		notmuchQuery = fmt.Sprintf("%s date:..@%d", notmuchQuery, before.Unix())
-	}
-
-	if since := criteria.Since; !since.IsZero() {
-		notmuchQuery = fmt.Sprintf("%s date:@%d..", notmuchQuery, since.Unix())
-	}
-
-	if since := criteria.SentSince; !since.IsZero() {
-		notmuchQuery = fmt.Sprintf("%s date:@%d..", notmuchQuery, since.Unix())
-	}
-
-	if topLevel && len(criteria.Or) > 0 {
-		notmuchQuery = notmuchQuery + " and ("
-	}
-
-	for _, pair := range criteria.Or {
-		notmuchQuery = fmt.Sprintf("%s %s or %s", notmuchQuery, imapSearchToNotmuch(pair[0], false), imapSearchToNotmuch(pair[1], false))
-	}
-
-	if topLevel && len(criteria.Or) > 0 {
-		notmuchQuery = notmuchQuery + ")"
-	}
-
-	for _, not := range criteria.Not {
-		notmuchQuery = fmt.Sprintf("%s not %s", notmuchQuery, imapSearchToNotmuch(not, false))
-	}
-
-	return notmuchQuery
-}
-
-// https://github.com/emersion/go-maildir/blob/ced1977bfb902354b2a8bfbf7517b8d6ba07cccb/maildir.go#L311
-func (mbox *Mailbox) newMessageKey() (string, error) {
-	var key string
-	key += strconv.FormatInt(time.Now().Unix(), 10)
-	key += "."
-	host, err := os.Hostname()
-	if err != nil {
-		return "", err
-	}
-	host = strings.Replace(host, "/", "\057", -1)
-	key += host
-	key += "."
-	key += strconv.FormatInt(int64(os.Getpid()), 10)
-	bs := make([]byte, 10)
-	_, err = io.ReadFull(rand.Reader, bs)
-	if err != nil {
-		return "", err
-	}
-	key += hex.EncodeToString(bs)
-	return key, nil
 }
