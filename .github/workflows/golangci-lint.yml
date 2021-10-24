@@ -4,7 +4,6 @@ on:
     tags:
       - v*
     branches:
-      - master
       - main
   pull_request:
 jobs:
@@ -12,13 +11,10 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up GCC
-        uses: egor-tensin/setup-gcc@v1
-         with:
-          version: latest
-          platform: x64
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
-        with:
-          version: v1.29
+     - uses: actions/checkout@v2
+     - name: Install required deps
+       run: sudo apt-get install -y libnotmuch-dev gcc
+     - name: golangci-lint
+       uses: golangci/golangci-lint-action@v2
+       with:
+         version: v1.29
