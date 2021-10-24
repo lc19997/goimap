@@ -33,7 +33,6 @@ func TestNotmuchIMAP(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	defer c.Logout()
 
 	t.Run("can find inbox", func(*testing.T) {
 		// Check mailboxes
@@ -106,6 +105,11 @@ func TestNotmuchIMAP(t *testing.T) {
 
 	})
 
+	t.Run("can logout", func(*testing.T) {
+		if err := c.Logout(); err != nil {
+			t.Error(err.Error())
+		}
+	})
 }
 
 func setupIMAPServer(t *testing.T) *server.Server {
