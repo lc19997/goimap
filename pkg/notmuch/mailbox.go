@@ -17,18 +17,24 @@ import (
 )
 
 type Mailbox struct {
-	Messages []*Message
-	lock     *sync.RWMutex
-	maildir  string
-	name     string
-	query    string
-	user     *User
+	lock *sync.RWMutex
 
+	Messages []*Message
+
+	name       string
+	maildir    string
+	query      string
+	user       *User
+	attributes []string
+
+	// Counts
 	total       uint32
 	recent      uint32
 	unseen      uint32
 	lastUpdated time.Time
 
+	// All messages in a mailbox must be identified by
+	// an unchanging UID (unless UID validity changes)
 	uidMapper *uid.Mapper
 }
 
@@ -38,6 +44,7 @@ func (mbox *Mailbox) Name() string {
 
 func (mbox *Mailbox) Info() (*imap.MailboxInfo, error) {
 	info := &imap.MailboxInfo{
+		Attributes: mbox.attributes,
 		Delimiter: "/",
 		Name:      mbox.name,
 	}

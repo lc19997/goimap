@@ -49,13 +49,23 @@ func New(cfg *config.Config) (*Backend, error) {
 	// Parse mailbox list from config file
 	mailboxes := make(map[string]*Mailbox)
 	for _, mailbox := range cfg.Mailboxes {
+		attrs := make([]string, 0)
+		for _, attr := range mailbox.Attributes {
+			if attr[0] != '\\' {
+				attrs = append(attrs, "\\"+attr)
+			} else {
+				attrs = append(attrs, attr)
+			}
+		}
+
 		mailboxes[mailbox.Name] = &Mailbox{
-			name:      mailbox.Name,
-			query:     mailbox.Query,
-			maildir:   cfg.Maildir,
-			user:      user,
-			lock:      &sync.RWMutex{},
-			uidMapper: uidMapper,
+			name:       mailbox.Name,
+			query:      mailbox.Query,
+			maildir:    cfg.Maildir,
+			attributes: attrs,
+			user:       user,
+			lock:       &sync.RWMutex{},
+			uidMapper:  uidMapper,
 		}
 	}
 

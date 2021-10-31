@@ -43,8 +43,9 @@ type Config struct {
 }
 
 type Mailbox struct {
-	Name  string `yaml:"name"`
-	Query string `yaml:"query"`
+	Name       string   `yaml:"name"`
+	Query      string   `yaml:"query"`
+	Attributes []string `yaml:"attributes"`
 }
 
 func (c *Config) SetDefaults() {
