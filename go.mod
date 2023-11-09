@@ -8,6 +8,8 @@ require (
 	github.com/zenhack/go.notmuch v0.0.0-20200930180226-732f6524c33d
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	gopkg.in/yaml.v2 v2.4.0
+	gorm.io/driver/sqlite v1.5.4
+	gorm.io/gorm v1.25.5
 )
 
 replace github.com/zenhack/go.notmuch => github.com/stbenjam/go.notmuch v0.0.0-20211020000856-ac412a4e5b67

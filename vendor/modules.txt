@@ -17,6 +17,12 @@ github.com/emersion/go-message/textproto
 github.com/emersion/go-sasl
 # github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594
 github.com/emersion/go-textwrapper
+# github.com/jinzhu/inflection v1.0.0
+github.com/jinzhu/inflection
+# github.com/jinzhu/now v1.1.5
+github.com/jinzhu/now
+# github.com/mattn/go-sqlite3 v1.14.17
+github.com/mattn/go-sqlite3
 # github.com/zenhack/go.notmuch v0.0.0-20200930180226-732f6524c33d => github.com/stbenjam/go.notmuch v0.0.0-20211020000856-ac412a4e5b67
 ## explicit
 github.com/zenhack/go.notmuch
@@ -31,4 +37,16 @@ golang.org/x/text/transform
 # gopkg.in/yaml.v2 v2.4.0
 ## explicit
 gopkg.in/yaml.v2
+# gorm.io/driver/sqlite v1.5.4
+## explicit
+gorm.io/driver/sqlite
+# gorm.io/gorm v1.25.5
+## explicit
+gorm.io/gorm
+gorm.io/gorm/callbacks
+gorm.io/gorm/clause
+gorm.io/gorm/logger
+gorm.io/gorm/migrator
+gorm.io/gorm/schema
+gorm.io/gorm/utils
 # github.com/zenhack/go.notmuch => github.com/stbenjam/go.notmuch v0.0.0-20211020000856-ac412a4e5b67
