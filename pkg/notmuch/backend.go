@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
+	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
+	"github.com/stbenjam/go-imap-notmuch/pkg/uid/sqlite"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
@@ -13,12 +13,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/stbenjam/go-imap-notmuch/pkg/config"
-	"github.com/stbenjam/go-imap-notmuch/pkg/db/models"
 )
 
 type Backend struct {
-	user *User
-	db   *gorm.DB
+	user      *User
+	uidMapper uid.Mapper
 }
 
 func (b *Backend) Login(_ *imap.ConnInfo, username, password string) (backend.User, error) {
@@ -40,12 +39,8 @@ func New(cfg *config.Config) (*Backend, error) {
 	}
 	db.Close()
 
-	uidDB, err := gorm.Open(sqlite.Open(cfg.UidDatabase), &gorm.Config{})
+	uidMapper, err := sqlite.New(cfg.UidDatabase)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := uidDB.AutoMigrate(&models.UIDEntry{}); err != nil {
 		return nil, err
 	}
 
@@ -73,14 +68,14 @@ func New(cfg *config.Config) (*Backend, error) {
 			attributes: attrs,
 			user:       user,
 			lock:       &sync.RWMutex{},
-			db:         uidDB,
+			uidMapper:  uidMapper,
 		}
 	}
 
 	user.mailboxes = mailboxes
 
 	return &Backend{
-		user: user,
-		db:   uidDB,
+		user:      user,
+		uidMapper: uidMapper,
 	}, nil
 }
