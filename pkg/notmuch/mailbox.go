@@ -123,6 +123,7 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 	mbox.lock.Lock()
 	defer mbox.lock.Unlock()
 
+	logrus.Infof("listing messages for %s", mbox.name)
 	for i, msg := range mbox.Messages {
 		seqNum := uint32(i + 1)
 
@@ -143,6 +144,7 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 
 		ch <- m
 	}
+	logrus.Infof("%d messages listedf or %s", len(mbox.Messages), mbox.name)
 
 	return nil
 }

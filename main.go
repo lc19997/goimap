@@ -15,7 +15,7 @@ import (
 
 func main() {
 	logrus.Infof("go-imap-notmuch starting")
-	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetLevel(logrus.InfoLevel)
 	var cfg *config.Config
 	var err error
 
@@ -28,11 +28,14 @@ func main() {
 		fmt.Fprintf(os.Stderr, "usage: %s <config file>\n", os.Args[0])
 		os.Exit(1)
 	}
+	logrus.Infof("configuration loaded")
 
 	be, err := notmuch.New(cfg)
 	if err != nil {
 		logrus.WithError(err).Fatalf("couldn't initialize notmuch database")
 	}
+	logrus.Infof("notmuch database initialized")
+
 	s := server.New(be)
 
 	if cfg.Debug {
@@ -74,5 +77,4 @@ func main() {
 	if err := s.ListenAndServe(); err != nil {
 		logrus.Fatal(err)
 	}
-	logrus.Infof("go-imap-notmuch started!")
 }
