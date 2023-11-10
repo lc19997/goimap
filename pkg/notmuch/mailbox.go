@@ -2,16 +2,18 @@ package notmuch
 
 import (
 	"fmt"
-	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
 	"io/ioutil"
 	"os"
 	"path"
 	"sync"
 	"time"
 
+	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
+
 	"github.com/emersion/go-imap/backend/backendutil"
-	"github.com/stbenjam/go-imap-notmuch/pkg/maildir"
 	notmuch "github.com/zenhack/go.notmuch"
+
+	"github.com/stbenjam/go-imap-notmuch/pkg/maildir"
 
 	"github.com/emersion/go-imap"
 )
@@ -45,8 +47,8 @@ func (mbox *Mailbox) Name() string {
 func (mbox *Mailbox) Info() (*imap.MailboxInfo, error) {
 	info := &imap.MailboxInfo{
 		Attributes: mbox.attributes,
-		Delimiter: "/",
-		Name:      mbox.name,
+		Delimiter:  "/",
+		Name:       mbox.name,
 	}
 	return info, nil
 }
@@ -90,9 +92,9 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 		case imap.StatusMessages:
 			status.Messages = mbox.total
 		case imap.StatusUidNext:
-			status.UidNext = mbox.uidMapper.Next
+			status.UidNext = mbox.uidMapper.GetNext()
 		case imap.StatusUidValidity:
-			status.UidValidity = mbox.uidMapper.Validity
+			status.UidValidity = mbox.uidMapper.GetValidity()
 		case imap.StatusRecent:
 			status.Recent = mbox.recent
 		case imap.StatusUnseen:

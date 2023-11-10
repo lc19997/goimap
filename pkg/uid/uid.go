@@ -19,7 +19,9 @@ type Mapper struct {
 }
 
 func New(path string) (*Mapper, error) {
-	mapper := Mapper{}
+	mapper := Mapper{
+		lock: &sync.RWMutex{},
+	}
 
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
@@ -47,7 +49,6 @@ func New(path string) (*Mapper, error) {
 		return nil, err
 	}
 
-	mapper.lock = &sync.RWMutex{}
 	return mapper.setDefaults(path), nil
 }
 
@@ -74,7 +75,7 @@ func (u *Mapper) FindOrAdd(id string) uint32 {
 
 	if _, ok := u.Values[id]; !ok {
 		u.Values[id] = u.Next
-		u.Next++
+		u.Next += 1
 	}
 
 	return u.Values[id]
@@ -86,11 +87,25 @@ func (u *Mapper) Remove(id string) {
 	delete(u.Values, id)
 }
 
+func (u *Mapper) GetValidity() uint32 {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
+	return u.Validity
+}
+
+func (u *Mapper) GetNext() uint32 {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
+	return u.Next
+}
+
 func (u *Mapper) setDefaults(path string) *Mapper {
+	u.lock.Lock()
+	defer u.lock.Unlock()
+
 	if u.Validity == 0 {
 		u.Validity = 1
 	}
-
 	if u.Next == 0 {
 		u.Next = 1
 	}

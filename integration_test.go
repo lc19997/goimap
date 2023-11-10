@@ -1,18 +1,20 @@
 package main
 
 import (
-	"github.com/emersion/go-imap"
-	"github.com/emersion/go-imap/client"
-	"github.com/emersion/go-imap/server"
-	"github.com/stbenjam/go-imap-notmuch/pkg/config"
-	"github.com/stbenjam/go-imap-notmuch/pkg/notmuch"
-	"golang.org/x/crypto/bcrypt"
 	"net/textproto"
 	"os"
 	"path"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/emersion/go-imap"
+	"github.com/emersion/go-imap/client"
+	"github.com/emersion/go-imap/server"
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/stbenjam/go-imap-notmuch/pkg/config"
+	"github.com/stbenjam/go-imap-notmuch/pkg/notmuch"
 )
 
 func TestNotmuchIMAP(t *testing.T) {
@@ -132,7 +134,8 @@ func setupIMAPServer(t *testing.T) *server.Server {
 				Query: "is:unread",
 			},
 		},
-		Debug: true,
+		Debug:       true,
+		UidDatabase: path.Join(dir, "uid.dat"),
 	}
 	cfg.SetDefaults()
 

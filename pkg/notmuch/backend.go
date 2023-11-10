@@ -2,14 +2,16 @@ package notmuch
 
 import (
 	"fmt"
-	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
 	"sync"
+
+	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
-	"github.com/stbenjam/go-imap-notmuch/pkg/config"
 	notmuch "github.com/zenhack/go.notmuch"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/stbenjam/go-imap-notmuch/pkg/config"
 )
 
 type Backend struct {
@@ -38,7 +40,7 @@ func New(cfg *config.Config) (*Backend, error) {
 
 	uidMapper, err := uid.New(cfg.UidDatabase)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't open uid database: %w", err)
 	}
 
 	user := &User{
