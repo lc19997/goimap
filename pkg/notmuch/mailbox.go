@@ -523,6 +523,9 @@ func (mbox *Mailbox) loadMessages() {
 			Flags:    imapFlags,
 			Size:     uint32(s.Size()),
 		})
+		if err := message.Close(); err != nil {
+			logrus.WithError(err).Errorf("failed to close notmuch message")
+		}
 	}
 
 	if err := mbox.uidMapper.Flush(); err != nil {
