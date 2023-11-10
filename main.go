@@ -3,6 +3,8 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -11,6 +13,8 @@ import (
 	"github.com/stbenjam/go-imap-notmuch/pkg/notmuch"
 
 	"github.com/emersion/go-imap/server"
+
+	"github.com/pkg/profile"
 )
 
 func main() {
@@ -18,6 +22,11 @@ func main() {
 	logrus.SetLevel(logrus.InfoLevel)
 	var cfg *config.Config
 	var err error
+
+	defer profile.Start(profile.MemProfile).Stop()
+	go func() {
+		http.ListenAndServe(":8080", nil)
+	}()
 
 	if len(os.Args) > 1 {
 		cfg, err = config.New(os.Args[1])
