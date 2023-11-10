@@ -2,6 +2,7 @@ package notmuch
 
 import (
 	"fmt"
+	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
 	"io/ioutil"
 	"os"
 	"path"
@@ -9,10 +10,8 @@ import (
 	"time"
 
 	"github.com/emersion/go-imap/backend/backendutil"
-	notmuch "github.com/zenhack/go.notmuch"
-
 	"github.com/stbenjam/go-imap-notmuch/pkg/maildir"
-	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
+	notmuch "github.com/zenhack/go.notmuch"
 
 	"github.com/emersion/go-imap"
 )
@@ -36,7 +35,7 @@ type Mailbox struct {
 
 	// All messages in a mailbox must be identified by
 	// an unchanging UID (unless UID validity changes)
-	uidMapper uid.Mapper
+	uidMapper *uid.Mapper
 }
 
 func (mbox *Mailbox) Name() string {
@@ -46,8 +45,8 @@ func (mbox *Mailbox) Name() string {
 func (mbox *Mailbox) Info() (*imap.MailboxInfo, error) {
 	info := &imap.MailboxInfo{
 		Attributes: mbox.attributes,
-		Delimiter:  "/",
-		Name:       mbox.name,
+		Delimiter: "/",
+		Name:      mbox.name,
 	}
 	return info, nil
 }
@@ -91,9 +90,9 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 		case imap.StatusMessages:
 			status.Messages = mbox.total
 		case imap.StatusUidNext:
-			status.UidNext = 0 // don't support this
+			status.UidNext = mbox.uidMapper.Next
 		case imap.StatusUidValidity:
-			status.UidValidity = mbox.uidMapper.Validity()
+			status.UidValidity = mbox.uidMapper.Validity
 		case imap.StatusRecent:
 			status.Recent = mbox.recent
 		case imap.StatusUnseen:
@@ -252,6 +251,10 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 	}
 	message.Uid = mbox.uidMapper.FindOrAdd(nmm.ID())
 	db.Close()
+
+	if err := mbox.uidMapper.Flush(); err != nil {
+		return err
+	}
 
 	mbox.Messages = append(mbox.Messages, message)
 	return nil
@@ -492,6 +495,10 @@ func (mbox *Mailbox) loadMessages() {
 			Flags:    imapFlags,
 			Size:     uint32(s.Size()),
 		})
+	}
+
+	if err := mbox.uidMapper.Flush(); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 	}
 
 	mbox.Messages = messages

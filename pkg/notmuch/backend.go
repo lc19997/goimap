@@ -2,22 +2,19 @@ package notmuch
 
 import (
 	"fmt"
-	"sync"
-
 	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
-	"github.com/stbenjam/go-imap-notmuch/pkg/uid/sqlite"
+	"sync"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
+	"github.com/stbenjam/go-imap-notmuch/pkg/config"
 	notmuch "github.com/zenhack/go.notmuch"
 	"golang.org/x/crypto/bcrypt"
-
-	"github.com/stbenjam/go-imap-notmuch/pkg/config"
 )
 
 type Backend struct {
 	user      *User
-	uidMapper uid.Mapper
+	uidMapper *uid.Mapper
 }
 
 func (b *Backend) Login(_ *imap.ConnInfo, username, password string) (backend.User, error) {
@@ -39,7 +36,7 @@ func New(cfg *config.Config) (*Backend, error) {
 	}
 	db.Close()
 
-	uidMapper, err := sqlite.New(cfg.UidDatabase)
+	uidMapper, err := uid.New(cfg.UidDatabase)
 	if err != nil {
 		return nil, err
 	}
