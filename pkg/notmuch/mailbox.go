@@ -81,7 +81,7 @@ func (mbox *Mailbox) unseenSeqNum() uint32 {
 }
 
 func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error) {
-	mbox.loadCounts()
+	mbox.loadMessages()
 
 	status := imap.NewMailboxStatus(mbox.name, items)
 	status.PermanentFlags = []string{"\\*"}
@@ -431,21 +431,6 @@ func (mbox *Mailbox) Expunge() error {
 	return nil
 }
 
-func (mbox *Mailbox) loadCounts() {
-	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
-		return
-	}
-	defer db.Close()
-
-	mbox.lock.Lock()
-	defer mbox.lock.Unlock()
-	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
-	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
-	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
-}
-
 func (mbox *Mailbox) loadMessages() {
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
 	if err != nil {
@@ -459,6 +444,7 @@ func (mbox *Mailbox) loadMessages() {
 	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "flintlock"))
 	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
 	mbox.lastUpdated = stat.ModTime()
+	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
 	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
 	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 
