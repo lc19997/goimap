@@ -1,20 +1,18 @@
 package main
 
 import (
+	"github.com/emersion/go-imap"
+	"github.com/emersion/go-imap/client"
+	"github.com/emersion/go-imap/server"
+	"github.com/stbenjam/go-imap-notmuch/pkg/config"
+	"github.com/stbenjam/go-imap-notmuch/pkg/notmuch"
+	"golang.org/x/crypto/bcrypt"
 	"net/textproto"
 	"os"
 	"path"
 	"runtime"
 	"testing"
 	"time"
-
-	"github.com/emersion/go-imap"
-	"github.com/emersion/go-imap/client"
-	"github.com/emersion/go-imap/server"
-	"golang.org/x/crypto/bcrypt"
-
-	"github.com/stbenjam/go-imap-notmuch/pkg/config"
-	"github.com/stbenjam/go-imap-notmuch/pkg/notmuch"
 )
 
 func TestNotmuchIMAP(t *testing.T) {
@@ -51,6 +49,26 @@ func TestNotmuchIMAP(t *testing.T) {
 		if !found {
 			t.Fatal("Did not find INBOX")
 		}
+	})
+
+	t.Run("can get last message from mailbox", func(t *testing.T) {
+		mbox, err := c.Select("INBOX", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := mbox.UidNext - 1
+		seqset := new(imap.SeqSet)
+		seqset.AddRange(i, i)
+		messages := make(chan *imap.Message, 10)
+		done := make(chan error, 1)
+		done <- c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope}, messages)
+		for msg := range messages {
+			if msg.Envelope.Subject == "[notmuch] [PATCH 1/2] Close message file after parsing message headers" {
+				return
+			}
+		}
+
+		t.Error("couldn't load last message from mailbox")
 	})
 
 	t.Run("can search mailbox", func(t *testing.T) {
