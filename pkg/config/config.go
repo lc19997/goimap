@@ -1,10 +1,11 @@
 package config
 
 import (
-	"golang.org/x/crypto/bcrypt"
 	"io/ioutil"
 	"os"
 	"path"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"gopkg.in/yaml.v2"
 )
@@ -63,7 +64,7 @@ func (c *Config) SetDefaults() {
 	}
 
 	if c.UidDatabase == "" {
-		c.UidDatabase = path.Join(c.Maildir, "/.uid.dat")
+		c.UidDatabase = path.Join(c.Maildir, "/.uid.db")
 	}
 
 	if len(c.Mailboxes) == 0 {

@@ -10,11 +10,12 @@ import (
 
 	"github.com/emersion/go-imap/backend/backendutil"
 	notmuch "github.com/zenhack/go.notmuch"
-
-	"github.com/stbenjam/go-imap-notmuch/pkg/maildir"
-	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
+	"gorm.io/gorm"
 
 	"github.com/emersion/go-imap"
+
+	"github.com/stbenjam/go-imap-notmuch/pkg/db/models"
+	"github.com/stbenjam/go-imap-notmuch/pkg/maildir"
 )
 
 type Mailbox struct {
@@ -34,9 +35,7 @@ type Mailbox struct {
 	unseen      uint32
 	lastUpdated time.Time
 
-	// All messages in a mailbox must be identified by
-	// an unchanging UID (unless UID validity changes)
-	uidMapper uid.Mapper
+	db *gorm.DB
 }
 
 func (mbox *Mailbox) Name() string {
@@ -93,7 +92,7 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 		case imap.StatusUidNext:
 			status.UidNext = 0 // don't support this
 		case imap.StatusUidValidity:
-			status.UidValidity = mbox.uidMapper.Validity()
+			status.UidValidity = 1 // always 1
 		case imap.StatusRecent:
 			status.Recent = mbox.recent
 		case imap.StatusUnseen:
@@ -250,7 +249,14 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 	if err != nil {
 		return err
 	}
-	message.Uid = mbox.uidMapper.FindOrAdd(nmm.ID())
+	uidEntry := &models.UIDEntry{
+		ExternalID: nmm.ID(),
+	}
+	res := mbox.db.Model(uidEntry).FirstOrCreate(uidEntry)
+	if res.Error != nil {
+		return res.Error
+	}
+	message.Uid = uint32(uidEntry.ID)
 	db.Close()
 
 	mbox.Messages = append(mbox.Messages, message)
@@ -413,7 +419,13 @@ func (mbox *Mailbox) Expunge() error {
 
 		if deleted {
 			fmt.Printf("Removing %s\n", message.ID)
-			mbox.uidMapper.Remove(message.ID)
+			uidEntry := &models.UIDEntry{
+				ExternalID: message.ID,
+			}
+			res := mbox.db.Model(uidEntry).Unscoped().Delete(&uidEntry)
+			if res.Error != nil {
+				return res.Error
+			}
 			if err := db.RemoveMessage(message.Filename); err != nil {
 				return err
 			}
@@ -467,31 +479,46 @@ func (mbox *Mailbox) loadMessages() {
 	if err != nil {
 		panic(err)
 	}
-	var message *notmuch.Message
-	for results.Next(&message) {
-		f := message.Filename()
-		s, err := os.Stat(f)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
 
-		imapFlags := make([]string, 0)
-		maildirFlags := maildir.FlagFromFilename(f)
-		for _, flag := range maildirFlags {
-			if imapFlag := maildir.ImapFlagFromMaildir(flag); imapFlag != "" {
-				imapFlags = append(imapFlags, imapFlag)
+	if err := mbox.db.Transaction(func(tx *gorm.DB) error {
+		var message *notmuch.Message
+		for results.Next(&message) {
+			f := message.Filename()
+			s, err := os.Stat(f)
+			if err != nil {
+				fmt.Println(err)
+				continue
 			}
+
+			imapFlags := make([]string, 0)
+			maildirFlags := maildir.FlagFromFilename(f)
+			for _, flag := range maildirFlags {
+				if imapFlag := maildir.ImapFlagFromMaildir(flag); imapFlag != "" {
+					imapFlags = append(imapFlags, imapFlag)
+				}
+			}
+
+			uidEntry := &models.UIDEntry{
+				ExternalID: message.ID(),
+			}
+			res := mbox.db.Model(uidEntry).FirstOrCreate(uidEntry)
+			if res.Error != nil {
+				return res.Error
+			}
+
+			messages = append(messages, &Message{
+				ID:       message.ID(),
+				Uid:      uint32(uidEntry.ID),
+				Date:     message.Date(),
+				Filename: f,
+				Flags:    imapFlags,
+				Size:     uint32(s.Size()),
+			})
 		}
 
-		messages = append(messages, &Message{
-			ID:       message.ID(),
-			Uid:      mbox.uidMapper.FindOrAdd(message.ID()),
-			Date:     message.Date(),
-			Filename: f,
-			Flags:    imapFlags,
-			Size:     uint32(s.Size()),
-		})
+		return nil
+	}); err != nil {
+		panic("couldn't process mailbox")
 	}
 
 	mbox.Messages = messages

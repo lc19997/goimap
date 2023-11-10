@@ -1,6 +1,3 @@
-LD_LIBRARY_PATH=/opt/local/lib
-CGO_LDFLAGS=-L/opt/local/lib
-
 .PHONY: test ci fmtcheck
 
 ci: test lint
