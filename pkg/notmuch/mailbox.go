@@ -125,7 +125,7 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 	defer mbox.lock.Unlock()
 	mbox.loadMessages()
 
-	logrus.Infof("listing messages for %s", mbox.name)
+	logrus.Debugf("listing messages for %s", mbox.name)
 	listed := 0
 	for i, msg := range mbox.Messages {
 		seqNum := uint32(i + 1)
@@ -149,7 +149,7 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 
 		ch <- m
 	}
-	logrus.Infof("%d messages listed for %s", listed, mbox.name)
+	logrus.Infof("%d messages fetched from %s", listed, mbox.name)
 
 	return nil
 }
@@ -452,15 +452,17 @@ func (mbox *Mailbox) loadCounts() {
 	}
 	defer db.Close()
 
-	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
-	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
-	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
+	if mbox.needsUpdate(db) {
+		mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
+		mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
+		mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 
-	logrus.WithFields(logrus.Fields{
-		"total":  mbox.total,
-		"recent": mbox.recent,
-		"unseen": mbox.unseen,
-	}).Infof("message counts loaded for %q", mbox.name)
+		logrus.WithFields(logrus.Fields{
+			"total":  mbox.total,
+			"recent": mbox.recent,
+			"unseen": mbox.unseen,
+		}).Infof("message counts loaded for %q", mbox.name)
+	}
 }
 
 func (mbox *Mailbox) loadMessages() {
@@ -532,4 +534,18 @@ func (mbox *Mailbox) loadMessages() {
 	logrus.WithFields(logrus.Fields{
 		"total": len(mbox.Messages),
 	}).Infof("messages loaded for %q", mbox.name)
+}
+
+func (mbox *Mailbox) needsUpdate(db *notmuch.DB) bool {
+	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "flintlock"))
+	if err != nil {
+		logrus.Warningf("couldn't stat flintlock for mbox staleness detection")
+	}
+	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
+	if len(mbox.Messages) > 0 && !needsUpdate {
+		return false
+	}
+
+	logrus.Infof("update needed for %s", mbox.name)
+	return true
 }
