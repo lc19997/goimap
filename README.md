@@ -50,3 +50,4 @@ mailboxes:
 ```
 
 Note: Mailbox attributes are ones specified by [RFC6154](https://datatracker.ietf.org/doc/html/rfc6154), such as Drafts, Sent, etc.
+
