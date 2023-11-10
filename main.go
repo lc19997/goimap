@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -15,15 +14,15 @@ import (
 )
 
 func main() {
+	logrus.Infof("go-imap-notmuch starting")
 	logrus.SetLevel(logrus.DebugLevel)
-
 	var cfg *config.Config
 	var err error
 
 	if len(os.Args) > 1 {
 		cfg, err = config.New(os.Args[1])
 		if err != nil {
-			panic(err)
+			logrus.WithError(err).Fatalf("couldn't read configuration")
 		}
 	} else {
 		fmt.Fprintf(os.Stderr, "usage: %s <config file>\n", os.Args[0])
@@ -32,7 +31,7 @@ func main() {
 
 	be, err := notmuch.New(cfg)
 	if err != nil {
-		panic(err)
+		logrus.WithError(err).Fatalf("couldn't initialize notmuch database")
 	}
 	s := server.New(be)
 
@@ -42,6 +41,11 @@ func main() {
 	s.Addr = ":9143"
 
 	if cfg.TLSCertificate != "" && cfg.TLSKey != "" {
+		logrus.WithFields(logrus.Fields{
+			"tlsCert": cfg.TLSCertificate,
+			"tlsKey":  cfg.TLSKey,
+		}).Infof("starting with TLS enabled")
+
 		certs, err := tls.LoadX509KeyPair(cfg.TLSCertificate, cfg.TLSKey)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "could not load certificates: %s", err.Error())
@@ -68,6 +72,7 @@ func main() {
 		s.AllowInsecureAuth = true
 	}
 	if err := s.ListenAndServe(); err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
+	logrus.Infof("go-imap-notmuch started!")
 }
