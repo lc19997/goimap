@@ -81,7 +81,7 @@ func (mbox *Mailbox) unseenSeqNum() uint32 {
 }
 
 func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error) {
-	mbox.loadMessages()
+	mbox.loadCounts()
 
 	status := imap.NewMailboxStatus(mbox.name, items)
 	status.PermanentFlags = []string{"\\*"}
@@ -92,8 +92,10 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 		case imap.StatusMessages:
 			status.Messages = mbox.total
 		case imap.StatusUidNext:
+			mbox.loadMessages()
 			status.UidNext = mbox.uidMapper.GetNext()
 		case imap.StatusUidValidity:
+			mbox.loadMessages()
 			status.UidValidity = mbox.uidMapper.GetValidity()
 		case imap.StatusRecent:
 			status.Recent = mbox.recent
@@ -429,6 +431,21 @@ func (mbox *Mailbox) Expunge() error {
 
 	mbox.Messages = newMessages
 	return nil
+}
+
+func (mbox *Mailbox) loadCounts() {
+	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
+		return
+	}
+	defer db.Close()
+
+	mbox.lock.Lock()
+	defer mbox.lock.Unlock()
+	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
+	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
+	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
 }
 
 func (mbox *Mailbox) loadMessages() {
