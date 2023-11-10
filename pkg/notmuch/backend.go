@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
 
 	"github.com/emersion/go-imap"
@@ -22,7 +24,7 @@ type Backend struct {
 func (b *Backend) Login(_ *imap.ConnInfo, username, password string) (backend.User, error) {
 	err := bcrypt.CompareHashAndPassword([]byte(b.user.password), []byte(password))
 	if err != nil {
-		fmt.Println(err)
+		logrus.WithError(err).Errorf("couldn't compare hash and password")
 	}
 	if err == nil && username == b.user.username {
 		return b.user, nil

@@ -1,10 +1,10 @@
 package config
 
 import (
-	"golang.org/x/crypto/bcrypt"
-	"io/ioutil"
 	"os"
 	"path"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"gopkg.in/yaml.v2"
 )
@@ -81,7 +81,7 @@ func New(path string) (*Config, error) {
 	config := Config{}
 
 	if path != "" {
-		cfg, err := ioutil.ReadFile(path)
+		cfg, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}

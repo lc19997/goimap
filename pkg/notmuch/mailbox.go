@@ -2,11 +2,13 @@ package notmuch
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/stbenjam/go-imap-notmuch/pkg/uid"
 
@@ -153,7 +155,7 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
 		return nil, err
 	}
 	notmuchQuery = mbox.query + " " + notmuchQuery
-	fmt.Fprintf(os.Stderr, "query is: %s\n", notmuchQuery)
+	logrus.Debugf("processing notmuch query %q", notmuchQuery)
 
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
 	if err != nil {
@@ -228,7 +230,7 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 	}
 	defer f.Close()
 
-	b, err := ioutil.ReadAll(body)
+	b, err := io.ReadAll(body)
 	if err != nil {
 		return err
 	}
@@ -294,13 +296,13 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 
 		if err := notMuchMessage.Atomic(func(m *notmuch.Message) {
 			if err := m.RemoveAllTags(); err != nil {
-				fmt.Fprintf(os.Stderr, "failed to remove tags from message %s: %s", m.ID(), err.Error())
+				logrus.WithError(err).Errorf("failed to remove tags from message %s", m.ID())
 				return
 			}
 			for _, tag := range msg.Tags() {
-				fmt.Printf("Adding tag %s\n", tag)
+				logrus.Infof("adding tag %q", tag)
 				if err := notMuchMessage.AddTag(tag); err != nil {
-					fmt.Fprintf(os.Stderr, "failed to add tag to message %s: %s\n", m.ID(), err.Error())
+					logrus.WithError(err).Errorf("failed to add tag to message %s", m.ID())
 					return
 				}
 			}
@@ -310,13 +312,13 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 		}
 
 		if err := notMuchMessage.TagsToMaildirFlags(); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to convert tag to mail dir flags: %s\n", err.Error())
+			logrus.WithError(err).Errorf("failed to convert tag to mail dir flag")
 			continue
 		}
 
 		newFile := notMuchMessage.Filename()
 		if err := notMuchMessage.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to close notmuch message %s: %s\n", msg.ID, err.Error())
+			logrus.WithError(err).Errorf("failed to close notmuch message %s", msg.ID)
 		}
 
 		msg.Filename = newFile
@@ -419,7 +421,7 @@ func (mbox *Mailbox) Expunge() error {
 		}
 
 		if deleted {
-			fmt.Printf("Removing %s\n", message.ID)
+			logrus.Debugf("removing message %q", message.ID)
 			mbox.uidMapper.Remove(message.ID)
 			if err := db.RemoveMessage(message.Filename); err != nil {
 				return err
@@ -436,7 +438,7 @@ func (mbox *Mailbox) Expunge() error {
 func (mbox *Mailbox) loadCounts() {
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadOnly)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not open mailbox: %s", err.Error())
+		logrus.WithError(err).Errorf("could not open mailbox")
 		return
 	}
 	defer db.Close()
@@ -446,6 +448,12 @@ func (mbox *Mailbox) loadCounts() {
 	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
 	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
 	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
+
+	logrus.WithFields(logrus.Fields{
+		"total":  mbox.total,
+		"recent": mbox.recent,
+		"unseen": mbox.unseen,
+	}).Infof("message counts loaded for %q", mbox.name)
 }
 
 func (mbox *Mailbox) loadMessages() {
@@ -464,6 +472,11 @@ func (mbox *Mailbox) loadMessages() {
 	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
 	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
 	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
+	logrus.WithFields(logrus.Fields{
+		"total":  mbox.total,
+		"recent": mbox.recent,
+		"unseen": mbox.unseen,
+	}).Infof("message counts loaded for %q", mbox.name)
 
 	if len(mbox.Messages) > 0 && !needsUpdate {
 		return
@@ -480,7 +493,7 @@ func (mbox *Mailbox) loadMessages() {
 		f := message.Filename()
 		s, err := os.Stat(f)
 		if err != nil {
-			fmt.Println(err)
+			logrus.WithError(err).Errorf("error reading message %q", message.ID())
 			continue
 		}
 
@@ -505,6 +518,10 @@ func (mbox *Mailbox) loadMessages() {
 	if err := mbox.uidMapper.Flush(); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"total": len(mbox.Messages),
+	}).Infof("messages loaded for %q", mbox.name)
 
 	mbox.Messages = messages
 }

@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/stbenjam/go-imap-notmuch/pkg/config"
 	"github.com/stbenjam/go-imap-notmuch/pkg/notmuch"
 
@@ -13,6 +15,8 @@ import (
 )
 
 func main() {
+	logrus.SetLevel(logrus.DebugLevel)
+
 	var cfg *config.Config
 	var err error
 

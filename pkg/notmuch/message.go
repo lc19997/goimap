@@ -2,7 +2,6 @@ package notmuch
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"os"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/emersion/go-imap/backend/backendutil"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/textproto"
+	"github.com/sirupsen/logrus"
 )
 
 type Message struct {
@@ -37,6 +37,10 @@ func (m *Message) headerAndBody() (*os.File, textproto.Header, io.Reader, error)
 }
 
 func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, error) {
+	logrus.WithFields(logrus.Fields{
+		"seqNum": seqNum,
+	}).Debugf("message fetch called")
+
 	fetched := imap.NewMessage(seqNum, items)
 	for _, item := range items {
 		switch item {
@@ -86,6 +90,10 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 }
 
 func (m *Message) Match(seqNum uint32, c *imap.SearchCriteria) (bool, error) {
+	logrus.WithFields(logrus.Fields{
+		"seqNum": seqNum,
+	}).Debugf("Match called")
+
 	f, _, body, err := m.headerAndBody()
 	if err != nil {
 		return false, err
@@ -100,6 +108,7 @@ func (m *Message) Match(seqNum uint32, c *imap.SearchCriteria) (bool, error) {
 }
 
 func (m *Message) Tags() []string {
+	logrus.Debugf("Tags called")
 	tags := make([]string, 0)
 	for _, flag := range m.Flags {
 		switch flag {
@@ -116,6 +125,5 @@ func (m *Message) Tags() []string {
 		}
 	}
 
-	fmt.Println(tags)
 	return tags
 }
