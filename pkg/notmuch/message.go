@@ -27,6 +27,7 @@ func (m *Message) headerAndBody() (*os.File, textproto.Header, io.Reader, error)
 	if err != nil {
 		return nil, textproto.Header{}, nil, err
 	}
+
 	body := bufio.NewReader(f)
 	hdr, err := textproto.ReadHeader(body)
 	if err != nil {

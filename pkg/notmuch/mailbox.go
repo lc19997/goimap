@@ -83,6 +83,8 @@ func (mbox *Mailbox) unseenSeqNum() uint32 {
 }
 
 func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error) {
+	mbox.lock.Lock()
+	defer mbox.lock.Unlock()
 	mbox.loadCounts()
 
 	status := imap.NewMailboxStatus(mbox.name, items)
@@ -119,11 +121,12 @@ func (mbox *Mailbox) Check() error {
 
 func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
 	defer close(ch)
-	mbox.loadMessages()
 	mbox.lock.Lock()
 	defer mbox.lock.Unlock()
+	mbox.loadMessages()
 
 	logrus.Infof("listing messages for %s", mbox.name)
+	listed := 0
 	for i, msg := range mbox.Messages {
 		seqNum := uint32(i + 1)
 
@@ -139,17 +142,21 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 
 		m, err := msg.Fetch(seqNum, items)
 		if err != nil {
+			logrus.WithError(err).Warningf("encountered error when fetching msg %d", seqNum)
 			continue
 		}
+		listed++
 
 		ch <- m
 	}
-	logrus.Infof("%d messages listedf or %s", len(mbox.Messages), mbox.name)
+	logrus.Infof("%d messages listed for %s", listed, mbox.name)
 
 	return nil
 }
 
 func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uint32, error) {
+	mbox.lock.Lock()
+	defer mbox.lock.Unlock()
 	mbox.loadMessages()
 
 	notmuchQuery, err := IMAPSearchToNotmuch(criteria, true)
@@ -269,9 +276,9 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 }
 
 func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.FlagsOp, flags []string) error {
-	mbox.loadMessages()
 	mbox.lock.Lock()
 	defer mbox.lock.Unlock()
+	mbox.loadMessages()
 
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
 	if err != nil {
@@ -334,10 +341,10 @@ func (mbox *Mailbox) CopyMessages(uid bool, seqset *imap.SeqSet, destName string
 }
 
 func (mbox *Mailbox) MoveMessages(uid bool, seqset *imap.SeqSet, dest string) error {
-	mbox.loadMessages()
-
 	mbox.lock.Lock()
 	defer mbox.lock.Unlock()
+	mbox.loadMessages()
+
 	db, err := notmuch.Open(mbox.maildir, notmuch.DBReadWrite)
 	if err != nil {
 		return fmt.Errorf("could not open mailbox: %s", err.Error())
@@ -445,8 +452,6 @@ func (mbox *Mailbox) loadCounts() {
 	}
 	defer db.Close()
 
-	mbox.lock.Lock()
-	defer mbox.lock.Unlock()
 	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
 	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
 	mbox.unseen = uint32(db.NewQuery(fmt.Sprintf("%s tag:unread", mbox.query)).CountMessages())
@@ -466,10 +471,15 @@ func (mbox *Mailbox) loadMessages() {
 	}
 	defer db.Close()
 
-	mbox.lock.Lock()
-	defer mbox.lock.Unlock()
 	stat, err := os.Stat(path.Join(db.Path(), ".notmuch", "xapian", "flintlock"))
+	if err != nil {
+		logrus.Warningf("couldn't stat flintlock for mbox staleness detection")
+	}
 	needsUpdate := err != nil || mbox.lastUpdated.Before(stat.ModTime())
+	if len(mbox.Messages) > 0 && !needsUpdate {
+		logrus.Infof("no update needed, using stored messages")
+		return
+	}
 	mbox.lastUpdated = stat.ModTime()
 	mbox.total = uint32(db.NewQuery(mbox.query).CountMessages())
 	mbox.recent = uint32(db.NewQuery(fmt.Sprintf("%s tag:new", mbox.query)).CountMessages())
@@ -479,10 +489,6 @@ func (mbox *Mailbox) loadMessages() {
 		"recent": mbox.recent,
 		"unseen": mbox.unseen,
 	}).Infof("message counts loaded for %q", mbox.name)
-
-	if len(mbox.Messages) > 0 && !needsUpdate {
-		return
-	}
 
 	messages := make([]*Message, 0)
 	query := db.NewQuery(mbox.query)
@@ -521,9 +527,9 @@ func (mbox *Mailbox) loadMessages() {
 		fmt.Fprintln(os.Stderr, err.Error())
 	}
 
+	mbox.Messages = messages
+
 	logrus.WithFields(logrus.Fields{
 		"total": len(mbox.Messages),
 	}).Infof("messages loaded for %q", mbox.name)
-
-	mbox.Messages = messages
 }
