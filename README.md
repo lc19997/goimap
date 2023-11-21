@@ -1,6 +1,6 @@
 # go-imap-notmuch
 
-:bangbang: | This software is experimental, use at your own risk. Please make a backup of your Maildir and notmuch database before trying to use this.
+:bangbang: | This software is experimental, use at your own risk. Please make a backup of your Maildir and notmuch database before trying to use this. I've also mostly given up on this idea and I've just put Dovecot + Solr in front of my Maildir.
 :---: | :---
 
 
